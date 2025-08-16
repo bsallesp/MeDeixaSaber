@@ -1,0 +1,7 @@
+﻿services:
+  mds.scraper:
+    image: mds.scraper
+    build:
+      context: .
+      dockerfile: MDS.Scraper/Dockerfile
+

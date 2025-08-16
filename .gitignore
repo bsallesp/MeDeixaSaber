@@ -1,0 +1,43 @@
+# Build artifacts
+bin/
+obj/
+Debug/
+Release/
+
+# Rider / Visual Studio
+.vs/
+.idea/
+
+# User-specific
+*.user
+*.suo
+
+# Logs
+*.log
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# Cache / Temp
+*.cache
+*.tmp
+
+# Playwright / Node
+.playwright/
+node_modules/
+package-lock.json
+package.json
+
+# Generated data
+data/
+*.csv
+*.txt
+
+# Others
+*.dbmdl
+*.bak
+*.db
+*.mdf
+*.ldf
