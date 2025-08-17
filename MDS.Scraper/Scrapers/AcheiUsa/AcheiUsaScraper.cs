@@ -5,7 +5,7 @@ using HtmlAgilityPack;
 
 namespace MDS.Scraper.Scrapers.AcheiUsa
 {
-    public static class Scraper
+    public static class AcheiUsaScraper
     {
         private static string Clean(string? s) =>
             Regex.Replace(HtmlEntity.DeEntitize(s ?? ""), @"\s+", " ").Trim();

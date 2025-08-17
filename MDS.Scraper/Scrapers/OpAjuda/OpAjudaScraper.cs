@@ -5,7 +5,7 @@ using MDS.Scraper.Utils;
 
 namespace MDS.Scraper.Scrapers.OpAjuda;
 
-public static class Scraper
+public static class OpAjudaScraper
 {
     private static string Clean(string s) =>
         Regex.Replace(HtmlEntity.DeEntitize(s ?? ""), @"\s+", " ").Trim();
