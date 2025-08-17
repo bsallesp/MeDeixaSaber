@@ -5,15 +5,14 @@ WORKDIR /app
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["MDS.Scraper/MDS.Scraper.csproj", "MDS.Scraper/"]
-RUN dotnet restore "MDS.Scraper/MDS.Scraper.csproj"
+COPY ["MDS.Scraper.csproj", "./"]
+RUN dotnet restore "MDS.Scraper.csproj"
 COPY . .
-WORKDIR "/src/MDS.Scraper"
-RUN dotnet build "./MDS.Scraper.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "MDS.Scraper.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./MDS.Scraper.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "MDS.Scraper.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
