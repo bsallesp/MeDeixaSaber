@@ -6,7 +6,7 @@ internal abstract class Program
 {
     private static async Task Main(string[] args)
     {
-        Console.WriteLine("Starting scrapers...VB00001");
+        Console.WriteLine("Starting scrapers...VB00004");
         
         using var http = new HttpClient();
         var today = DateTime.UtcNow.ToString("yyyy-MM-dd");

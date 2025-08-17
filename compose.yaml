@@ -5,3 +5,9 @@
       context: .
       dockerfile: MDS.Scraper/Dockerfile
 
+  mds.scraper-1:
+    image: mds.scraper-1
+    build:
+      context: .
+      dockerfile: MDS.Scraper/Dockerfile
+

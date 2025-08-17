@@ -419,15 +419,18 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
                 "https://classificados.acheiusa.com/category/17/pessoas/"
             };
 
+            // Escreve em /tmp para evitar 'Permission denied' no container
             var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss");
-            var itemsCsv = Path.Combine("data", $"acheiusa-items-{stamp}.csv");
-            var logFile = Path.Combine("data", $"acheiusa-log-{stamp}.txt");
+            var itemsCsv = Path.Combine("/tmp", $"acheiusa-items-{stamp}.csv");
+            var logFile = Path.Combine("/tmp", $"acheiusa-log-{stamp}.txt");
+
             var logLock = new SemaphoreSlim(1, 1);
             var dataLock = new SemaphoreSlim(1, 1);
 
             await AppendToFile(itemsCsv,
                 string.Join(",", "captured_at_utc", "url", "title", "ref_id", "location", "when", "post_date", "phone",
-                    "state", "description"), dataLock);
+                    "state", "description"),
+                dataLock);
 
             var totalItems = 0;
             var pages = 0;
@@ -443,7 +446,7 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
 
             foreach (var catBase in categories)
             {
-                int emptyStreak = 0;
+                int emptyStreak = 0; // páginas seguidas sem itens do dia
 
                 for (int page = 1; page <= 500; page++)
                 {
@@ -460,7 +463,7 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
                         break;
                     }
 
-                    var links = ExtractLinks(html, new Uri(url));
+                    var links = ExtractLinks(html, new Uri(url)); // List<(string url, string? location, string? when)>
                     if (links.Count == 0)
                     {
                         await AppendToFile(logFile, $"{NowIso()}\tPAGE_EMPTY\t{url}", logLock);
@@ -472,7 +475,7 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
                     await AppendToFile(logFile, $"{NowIso()}\tPAGE_LINKS\t{url}\t{links.Count}", logLock);
 
                     var sem = new SemaphoreSlim(6);
-                    var pageNew = 0;
+                    var pageNewToday = 0; // quantos itens do dia encontramos nesta página
 
                     await Task.WhenAll(links.Select(async tpl =>
                     {
@@ -497,8 +500,10 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
                                 return;
                             }
 
+                            // ParseItem do AcheiUSA retorna 7 campos
                             var (title, description, refId, phone, itemLocation, itemWhen, itemPostDate) =
                                 ParseItem(link, itemHtml);
+
                             if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(description))
                             {
                                 await AppendToFile(logFile, $"{NowIso()}\tITEM_PARSE_EMPTY\t{link}", logLock);
@@ -516,6 +521,9 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
                                 ? itemPostDate
                                 : DerivePostDateFromWhen(finalWhen);
 
+                            // mantém somente do dia atual
+                            if (finalPostDate != today) return;
+
                             var line = string.Join(",",
                                 CsvEscape(NowIso()),
                                 CsvEscape(link),
@@ -526,13 +534,12 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
                                 CsvEscape(finalPostDate),
                                 CsvEscape(phone),
                                 CsvEscape(""),
-                                CsvEscape(description)
-                            );
+                                CsvEscape(description));
 
                             await AppendToFile(itemsCsv, line, dataLock);
 
                             Interlocked.Increment(ref totalItems);
-                            Interlocked.Increment(ref pageNew);
+                            Interlocked.Increment(ref pageNewToday);
                         }
                         finally
                         {
@@ -541,9 +548,10 @@ namespace MDS.Scraper.Scrapers.AcheiUsa
                     }));
 
                     pages++;
-                    await AppendToFile(logFile, $"{NowIso()}\tPAGE_DONE\t{url}\t{pageNew}", logLock);
+                    await AppendToFile(logFile, $"{NowIso()}\tPAGE_DONE\t{url}\t{pageNewToday}", logLock);
 
-                    if (pageNew == 0)
+                    // Se duas páginas seguidas não deram nenhum item do dia, paramos de varrer
+                    if (pageNewToday == 0)
                     {
                         emptyStreak++;
                         if (emptyStreak >= 2) break;
