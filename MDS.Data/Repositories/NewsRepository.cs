@@ -15,6 +15,14 @@ public sealed class NewsRepository(IDbConnectionFactory factory)
             new { d = dayUtc.Date });
     }
 
+    public async Task<IEnumerable<string>> GetTitlesByDayAsync(DateTime dayUtc)
+    {
+        await using var conn = await factory.GetOpenConnectionAsync();
+        return await conn.QueryAsync<string>(
+            "select Title from dbo.News where cast(PublishedAt as date)=@d",
+            new { d = dayUtc.Date });
+    }
+
     public async Task<IEnumerable<News>> GetLatestAsync(int take = 50)
     {
         await using var conn = await factory.GetOpenConnectionAsync();
@@ -23,6 +31,7 @@ public sealed class NewsRepository(IDbConnectionFactory factory)
             new { take });
     }
 
+    // Usa o proc de upsert por URL
     public async Task InsertAsync(News entity)
     {
         await using var conn = await factory.GetOpenConnectionAsync();

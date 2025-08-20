@@ -6,6 +6,9 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["MDS.Runner.NewsLlm/MDS.Runner.NewsLlm.csproj", "MDS.Runner.NewsLlm/"]
+COPY ["MDS.Data/MDS.Data.csproj", "MDS.Data/"]
+COPY ["MeDeixaSaber.Core/MeDeixaSaber.Core.csproj", "MeDeixaSaber.Core/"]
+
 RUN dotnet restore "MDS.Runner.NewsLlm/MDS.Runner.NewsLlm.csproj"
 COPY . .
 WORKDIR "/src/MDS.Runner.NewsLlm"

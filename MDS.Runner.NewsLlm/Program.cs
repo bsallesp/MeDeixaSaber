@@ -8,14 +8,14 @@ using MeDeixaSaber.Core.Models;
 
 static class Program
 {
-    static readonly string[] Topics = { "immigration", "employment", "economy", "politics" };
+    static readonly string[] Topics = { "imigração" };
 
     static async Task<string> GetSecretValueAsync(string vaultUrl, string name)
     {
-        Console.WriteLine($"[KV] Getting secret '{name}'...");
+        Console.WriteLine($"[KV] Obtendo secret '{name}'...");
         var client = new SecretClient(new Uri(vaultUrl), new DefaultAzureCredential());
         var s = await client.GetSecretAsync(name);
-        Console.WriteLine($"[KV] Got '{name}' (len={s.Value.Value.Length}).");
+        Console.WriteLine($"[KV] OK '{name}' (len={s.Value.Value.Length}).");
         return s.Value.Value;
     }
 
@@ -24,8 +24,10 @@ static class Program
         try
         {
             using var doc = JsonDocument.Parse(json);
+
             if (doc.RootElement.TryGetProperty("output_text", out var ot) && ot.ValueKind == JsonValueKind.String)
                 return ot.GetString();
+
             if (doc.RootElement.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Array)
             {
                 foreach (var msg in output.EnumerateArray())
@@ -39,19 +41,13 @@ static class Program
                             if (txt.ValueKind == JsonValueKind.Object && txt.TryGetProperty("value", out var val) && val.ValueKind == JsonValueKind.String)
                                 return val.GetString();
                         }
-                        if (part.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String && t.GetString() == "output_text")
-                        {
-                            if (part.TryGetProperty("text", out var txt2) && txt2.ValueKind == JsonValueKind.String) return txt2.GetString();
-                            if (part.TryGetProperty("text", out var txtObj) && txtObj.ValueKind == JsonValueKind.Object && txtObj.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.String)
-                                return v.GetString();
-                        }
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ERR] ExtractTextPayload: {ex.Message}");
+            Console.WriteLine($"[ERRO] ExtractTextPayload: {ex.Message}");
         }
         return null;
     }
@@ -70,23 +66,60 @@ static class Program
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
         var topics = args.Length > 0 ? args : Topics;
+
         var factory = new SqlConnectionFactory(server, database);
         var repo = new NewsRepository(factory);
 
+        var hojeUtc = DateTime.UtcNow.Date;
+        var titulosHoje = (await repo.GetTitlesByDayAsync(hojeUtc)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Console.WriteLine($"[DEDUP] Títulos hoje: {titulosHoje.Count}");
+
         foreach (var topic in topics)
         {
-            Console.WriteLine($"\n=== Topic: {topic} ===");
+            Console.WriteLine($"\n=== Gerando notícia para: {topic} ===");
 
-            var input = $@"Return ONLY a JSON array. No prose, no markdown.
-Each item: Title, Summary, Content, Source, Url, PublishedAt (ISO 8601 UTC).
-Exactly 5 items about ""{topic}"".";
+            var prompt = $@"
+Você é um repórter de notícias em português do Brasil. SUA TAREFA É ENCONTRAR UMA MATÉRIA REAL EM INGLÊS E REESCREVÊ-LA EM PT-BR. 
+ATENÇÃO: A NOTÍCIA TEM QUE EXISTIR DE VERDADE. DE FORMA ALGUMA INVENTE FATO, FONTE OU LINK.
+
+Como proceder:
+1) Use busca na web (em INGLÊS) para encontrar UMA reportagem RECENTE sobre imigração nos EUA publicada HOJE (preferência) ou nas últimas 24–48 horas. 
+   Foque em casos que geram clique de forma responsável: detenções (fronteira/ICE), decisões judiciais que mudam o rumo (green card aprovado após audiência), deportação interrompida, reunificação familiar, acordos, mudanças de política que afetem casos reais etc.
+   Use APENAS veículos de notícia (sem fóruns/reddit/blogs pessoais). A matéria tem que existir e ter URL válida.
+
+2) Reescreva a reportagem COMPLETA em PORTUGUÊS DO BRASIL como um texto original jornalístico — 600 a 900 palavras:
+   - Tom responsável, informativo e envolvente (narrativa jornalística).
+   - Contextualize: cidade/estado, data, órgão (ICE/CBP/USCIS/tribunal), leis/regras citadas, prazos e próximos passos.
+   - Inclua aspas/posicionamentos (autoridades, defesa, família) quando houver. 
+   - Preserve privacidade quando a fonte não revelar identidade (iniciais/descrições genéricas).
+   - NÃO copie trechos longos literalmente; reescreva com suas palavras.
+
+3) Gere UM objeto JSON com as chaves EXATAS:
+   - ""Title"" (PT-BR)
+   - ""Summary"" (PT-BR)
+   - ""Content"" (PT-BR)
+   - ""Source""
+   - ""Url""
+   - ""PublishedAt""
+
+4) Se a matéria for de até 48h atrás, tudo bem, mas informe a data original no corpo; ""PublishedAt"" deve ser agora (UTC).
+
+5) EVITE os títulos já publicados hoje (deduplicação). Se seu melhor título colidir, crie outro igualmente bom.
+
+Títulos publicados hoje:
+{string.Join("\n", titulosHoje.Select(t => "- " + t))}
+
+RESPOSTA OBRIGATÓRIA: retorne SOMENTE UM OBJETO JSON COM AS CHAVES {{""Title"",""Summary"",""Content"",""Source"",""Url"",""PublishedAt""}}.
+Sem markdown, sem comentários, sem texto extra fora do JSON.
+";
 
             var body = new
             {
                 model = "gpt-4o-mini",
-                input,
-                max_output_tokens = 2000,
-                temperature = 0.4
+                input = prompt,
+                tools = new object[] { new { type = "web_search" } },
+                max_output_tokens = 4000,
+                temperature = 0.6
             };
 
             var reqContent = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
@@ -94,66 +127,63 @@ Exactly 5 items about ""{topic}"".";
             var resp = await http.PostAsync("https://api.openai.com/v1/responses", reqContent);
             var json = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($"[API] Status={resp.StatusCode}");
-            Console.WriteLine($"[API] Raw(0..500): {(json.Length > 500 ? json[..500] + "..." : json)}");
+            Console.WriteLine($"[API] Raw(0..600): {(json.Length > 600 ? json[..600] + "..." : json)}");
 
             if (!resp.IsSuccessStatusCode)
             {
-                Console.WriteLine("[API] Non-success. Skipping topic.");
-                continue;
+                Console.WriteLine("[API] Chamada sem sucesso; pulando.");
+                break;
             }
 
             var payload = ExtractTextPayload(json);
             if (string.IsNullOrWhiteSpace(payload))
             {
-                var start = json.IndexOf('[');
-                var end = json.LastIndexOf(']');
-                payload = (start >= 0 && end > start) ? json.Substring(start, end - start + 1) : null;
+                var s = json.IndexOf('{');
+                var e = json.LastIndexOf('}');
+                payload = (s >= 0 && e > s) ? json.Substring(s, e - s + 1) : null;
             }
 
             if (string.IsNullOrWhiteSpace(payload))
             {
-                Console.WriteLine("[WARN] No text payload. Skipping.");
-                continue;
+                Console.WriteLine("[WARN] Sem payload de texto; pulando.");
+                break;
             }
 
             Console.WriteLine($"[API] Payload len={payload.Length}");
-            List<News>? items = null;
+
+            News? item = null;
 
             try
             {
-                items = JsonSerializer.Deserialize<List<News>>(payload, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                item = JsonSerializer.Deserialize<News>(payload, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"[WARN] Parse fail: {ex.Message}");
-                var start = payload.IndexOf('[');
-                var end = payload.LastIndexOf(']');
-                if (start >= 0 && end > start)
+                try
                 {
-                    var slice = payload.Substring(start, end - start + 1);
-                    Console.WriteLine($"[INFO] Retrying slice len={slice.Length}");
-                    try
-                    {
-                        items = JsonSerializer.Deserialize<List<News>>(slice, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    }
-                    catch (Exception ex2)
-                    {
-                        Console.WriteLine($"[ERR] Retry parse fail: {ex2.Message}");
-                    }
+                    var arr = JsonSerializer.Deserialize<List<News>>(payload, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (arr is { Count: > 0 }) item = arr[0];
                 }
+                catch { }
             }
 
-            if (items is null || items.Count == 0)
-            {
-                Console.WriteLine("[WARN] No items parsed.");
-                continue;
-            }
+            if (item is null) break;
 
-            Console.WriteLine($"[OK] Parsed {items.Count} items. Upserting...");
-            await repo.InsertManyAsync(items);
-            foreach (var n in items)
-                Console.WriteLine($"[DB] Upsert: {n.Title} | {n.Source} | {n.Url}");
-            Console.WriteLine("[DONE] Batch saved.");
+            if (string.IsNullOrWhiteSpace(item.Url) || !item.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase)) break;
+            if (string.IsNullOrWhiteSpace(item.Source)) break;
+            if (string.IsNullOrWhiteSpace(item.Title)) break;
+            if (titulosHoje.Contains(item.Title)) break;
+
+            if (item.PublishedAt == default) item.PublishedAt = DateTime.UtcNow;
+            if (item.CreatedAt == default) item.CreatedAt = DateTime.UtcNow;
+
+            Console.WriteLine($"[OK] Notícia gerada: {item.Title}");
+            Console.WriteLine($"[INFO] Fonte: {item.Source} | Url: {item.Url}");
+            await repo.InsertAsync(item);
+            Console.WriteLine("[DONE] Salvo com sucesso.");
+            break;
         }
+
+        Console.WriteLine("[FIM] Execução concluída.");
     }
 }
