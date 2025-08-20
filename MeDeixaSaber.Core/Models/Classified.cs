@@ -9,7 +9,7 @@ public sealed class Classified
     public string? RefId { get; set; }
     public string? Location { get; set; }
     public string? ListingWhen { get; set; }
-    public string? PostDate { get; set; }
+    public DateTime? PostDate { get; set; }
     public string? Phone { get; set; }
     public string? State { get; set; }
     public string? Description { get; set; }

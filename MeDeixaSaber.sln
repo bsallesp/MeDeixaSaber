@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MDS.Data", "MDS.Data\MDS.Da
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeDeixaSaber.Core", "MeDeixaSaber.Core\MeDeixaSaber.Core.csproj", "{CE8E6CC8-C50F-495C-BFE9-C4B40A8CB548}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MDS.Runner.NewsLlm", "MDS.Runner.NewsLlm\MDS.Runner.NewsLlm.csproj", "{D212021A-7CE9-42BB-8980-FD67D26709EF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -53,5 +55,9 @@ Global
 		{CE8E6CC8-C50F-495C-BFE9-C4B40A8CB548}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CE8E6CC8-C50F-495C-BFE9-C4B40A8CB548}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CE8E6CC8-C50F-495C-BFE9-C4B40A8CB548}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D212021A-7CE9-42BB-8980-FD67D26709EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D212021A-7CE9-42BB-8980-FD67D26709EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D212021A-7CE9-42BB-8980-FD67D26709EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D212021A-7CE9-42BB-8980-FD67D26709EF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

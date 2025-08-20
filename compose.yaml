@@ -11,3 +11,9 @@
       context: .
       dockerfile: MDS.Scraper/Dockerfile
 
+  mds.runner.newsllm:
+    image: mds.runner.newsllm
+    build:
+      context: .
+      dockerfile: MDS.Runner.NewsLlm/Dockerfile
+
