@@ -24,10 +24,8 @@ static class Program
         try
         {
             using var doc = JsonDocument.Parse(json);
-
             if (doc.RootElement.TryGetProperty("output_text", out var ot) && ot.ValueKind == JsonValueKind.String)
                 return ot.GetString();
-
             if (doc.RootElement.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Array)
             {
                 foreach (var msg in output.EnumerateArray())
@@ -50,6 +48,39 @@ static class Program
             Console.WriteLine($"[ERRO] ExtractTextPayload: {ex.Message}");
         }
         return null;
+    }
+
+    static async Task<string> PostWithRetryAsync(HttpClient http, object body, int max = 5)
+    {
+        for (var i = 1; i <= max; i++)
+        {
+            var req = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+            var resp = await http.PostAsync("https://api.openai.com/v1/responses", req);
+            var txt = await resp.Content.ReadAsStringAsync();
+            if ((int)resp.StatusCode < 500 && resp.StatusCode != System.Net.HttpStatusCode.TooManyRequests)
+            {
+                if (!resp.IsSuccessStatusCode) throw new Exception($"Bad status {(int)resp.StatusCode}: {txt}");
+                return txt;
+            }
+            var backoff = TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, i) + Random.Shared.NextDouble()));
+            await Task.Delay(backoff);
+        }
+        throw new Exception("Max retries reached.");
+    }
+
+    static async Task<bool> UrlOkAsync(string url)
+    {
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            using var req = new HttpRequestMessage(HttpMethod.Head, url);
+            using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+            if ((int)resp.StatusCode == 200) return true;
+            using var get = new HttpRequestMessage(HttpMethod.Get, url);
+            using var resp2 = await http.SendAsync(get, HttpCompletionOption.ResponseHeadersRead);
+            return (int)resp2.StatusCode == 200;
+        }
+        catch { return false; }
     }
 
     static async Task Main(string[] args)
@@ -78,62 +109,36 @@ static class Program
         {
             Console.WriteLine($"\n=== Gerando notícia para: {topic} ===");
 
-            var prompt = $@"
-Você é um repórter de notícias em português do Brasil. SUA TAREFA É ENCONTRAR UMA MATÉRIA REAL EM INGLÊS E REESCREVÊ-LA EM PT-BR. 
-ATENÇÃO: A NOTÍCIA TEM QUE EXISTIR DE VERDADE. DE FORMA ALGUMA INVENTE FATO, FONTE OU LINK.
-
-Como proceder:
-1) Use busca na web (em INGLÊS) para encontrar UMA reportagem RECENTE sobre imigração nos EUA publicada HOJE (preferência) ou nas últimas 24–48 horas. 
-   Foque em casos que geram clique de forma responsável: detenções (fronteira/ICE), decisões judiciais que mudam o rumo (green card aprovado após audiência), deportação interrompida, reunificação familiar, acordos, mudanças de política que afetem casos reais etc.
-   Use APENAS veículos de notícia (sem fóruns/reddit/blogs pessoais). A matéria tem que existir e ter URL válida.
-
-2) Reescreva a reportagem COMPLETA em PORTUGUÊS DO BRASIL como um texto original jornalístico — 600 a 900 palavras:
-   - Tom responsável, informativo e envolvente (narrativa jornalística).
-   - Contextualize: cidade/estado, data, órgão (ICE/CBP/USCIS/tribunal), leis/regras citadas, prazos e próximos passos.
-   - Inclua aspas/posicionamentos (autoridades, defesa, família) quando houver. 
-   - Preserve privacidade quando a fonte não revelar identidade (iniciais/descrições genéricas).
-   - NÃO copie trechos longos literalmente; reescreva com suas palavras.
-
-3) Gere UM objeto JSON com as chaves EXATAS:
-   - ""Title"" (PT-BR)
-   - ""Summary"" (PT-BR)
-   - ""Content"" (PT-BR)
-   - ""Source""
-   - ""Url""
-   - ""PublishedAt""
-
-4) Se a matéria for de até 48h atrás, tudo bem, mas informe a data original no corpo; ""PublishedAt"" deve ser agora (UTC).
-
-5) EVITE os títulos já publicados hoje (deduplicação). Se seu melhor título colidir, crie outro igualmente bom.
-
-Títulos publicados hoje:
-{string.Join("\n", titulosHoje.Select(t => "- " + t))}
-
-RESPOSTA OBRIGATÓRIA: retorne SOMENTE UM OBJETO JSON COM AS CHAVES {{""Title"",""Summary"",""Content"",""Source"",""Url"",""PublishedAt""}}.
-Sem markdown, sem comentários, sem texto extra fora do JSON.
-";
+            var raw = await GetSecretValueAsync(vaultUrl, "kv-prompt-news");
+            var prompt = raw
+                .Replace(@"\_", "_").Replace(@"\:", ":")
+                .Replace("{TOPIC}", topic)
+                .Replace("{TODAY_UTC}", DateTime.UtcNow.ToString("yyyy-MM-dd"))
+                .Replace("{TITULOS_HOJE}", string.Join("\n", titulosHoje.Select(t => "- " + t)));
 
             var body = new
             {
                 model = "gpt-4o-mini",
                 input = prompt,
                 tools = new object[] { new { type = "web_search" } },
-                max_output_tokens = 4000,
-                temperature = 0.6
+                tool_choice = "auto",
+                temperature = 0.4,
+                max_output_tokens = 1600
             };
 
-            var reqContent = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
             Console.WriteLine("[API] POST /v1/responses");
-            var resp = await http.PostAsync("https://api.openai.com/v1/responses", reqContent);
-            var json = await resp.Content.ReadAsStringAsync();
-            Console.WriteLine($"[API] Status={resp.StatusCode}");
-            Console.WriteLine($"[API] Raw(0..600): {(json.Length > 600 ? json[..600] + "..." : json)}");
-
-            if (!resp.IsSuccessStatusCode)
+            string json;
+            try
             {
-                Console.WriteLine("[API] Chamada sem sucesso; pulando.");
+                json = await PostWithRetryAsync(http, body);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[API] Falha: {ex.Message}");
                 break;
             }
+
+            Console.WriteLine($"[API] Raw(0..600): {(json.Length > 600 ? json[..600] + "..." : json)}");
 
             var payload = ExtractTextPayload(json);
             if (string.IsNullOrWhiteSpace(payload))
@@ -167,12 +172,19 @@ Sem markdown, sem comentários, sem texto extra fora do JSON.
                 catch { }
             }
 
-            if (item is null) break;
+            if (item is null)
+            {
+                await File.WriteAllTextAsync("payload.txt", payload);
+                Console.WriteLine("[DEBUG] Payload salvo em payload.txt");
+                break;
+            }
 
             if (string.IsNullOrWhiteSpace(item.Url) || !item.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase)) break;
             if (string.IsNullOrWhiteSpace(item.Source)) break;
             if (string.IsNullOrWhiteSpace(item.Title)) break;
             if (titulosHoje.Contains(item.Title)) break;
+
+            if (!await UrlOkAsync(item.Url)) break;
 
             if (item.PublishedAt == default) item.PublishedAt = DateTime.UtcNow;
             if (item.CreatedAt == default) item.CreatedAt = DateTime.UtcNow;
