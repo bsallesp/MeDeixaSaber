@@ -4,30 +4,37 @@ namespace MDS.Runner.NewsLlm.Journalists
 {
     public interface IJournalist
     {
-        Task RunAsync(NewsApiResponse payload, CancellationToken ct = default);
+        Task<IReadOnlyCollection<News>> WriteAsync(NewsApiResponse payload, EditorialBias bias, CancellationToken ct = default);
     }
 
-    public sealed class Journalist : IJournalist
+    public sealed class Journalist(INewsMapper mapper, IOpenAiNewsRewriter rewriter) : IJournalist
     {
-        public Task RunAsync(NewsApiResponse payload, CancellationToken ct = default)
+        private readonly INewsMapper _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        private readonly IOpenAiNewsRewriter _rewriter = rewriter ?? throw new ArgumentNullException(nameof(rewriter));
+
+        public async Task<IReadOnlyCollection<News>> WriteAsync(NewsApiResponse payload, EditorialBias bias, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(payload);
+            var items = (payload.Articles)
+                .Take(10) 
+                .ToList();
 
-            var count = payload.Articles?.Count ?? 0;
-            Console.WriteLine($"[JOURNALIST start] status={payload.Status} totalResults={payload.TotalResults} articles={count}");
-
-            var top = payload.Articles?.ToList() ?? [];
-
-            Console.WriteLine($"Total articles: {top.Count}");
-            
-            for (var i = 0; i < top.Count; i++)
+            var results = new List<News>(capacity: items.Count);
+            foreach (var src in items.Select(a => _mapper.Map(a)).OfType<News>())
             {
-                var a = top[i];
-                Console.WriteLine($"[JOURNALIST article] #{i + 1} title=\"{a.Title}\" source=\"{a.Source?.Name}\" publishedAt={a.PublishedAt:O}");
-            }
+                try
+                {
+                    var n = await _rewriter.RewriteAsync(src, bias, ct);
+                    results.Add(n);
 
-            Console.WriteLine("[JOURNALIST done]");
-            return Task.CompletedTask;
+                    Console.WriteLine($"Nova news: {n.Title} /// {n.Content}");
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+            return results;
         }
     }
 }
