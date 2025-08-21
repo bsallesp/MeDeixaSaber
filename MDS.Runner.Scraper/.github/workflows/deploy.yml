@@ -1,0 +1,26 @@
+﻿name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build and Push to ACR
+        run: az acr build --registry mdsprodacr --image mds-scraper:latest .
+
+      - name: Update Container App Job
+        run: |
+          az containerapp job update \
+            --name mds-runner \
+            --resource-group mds-prod \
+            --image mdsprodacr.azurecr.io/mds-scraper:latest
