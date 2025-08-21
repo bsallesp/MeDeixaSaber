@@ -4,6 +4,7 @@ using MDS.Data.Repositories;
 using MDS.Scraper.Services;
 using MDS.Scraper.Scrapers.AcheiUsa;
 using MDS.Scraper.Scrapers.OpAjuda;
+using MeDeixaSaber.Core.Services;
 
 static string? ArgEq(string[] args, string name)
     => args.FirstOrDefault(a => a.StartsWith($"--{name}=", StringComparison.OrdinalIgnoreCase))?.Split('=')[1];
@@ -11,35 +12,7 @@ static string? ArgEq(string[] args, string name)
 static bool HasFlag(string[] args, string flag)
     => args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
 
-static string NormalizeTitle(string? s)
-{
-    if (string.IsNullOrWhiteSpace(s)) return "";
-    var t = s.Trim();
-
-    var sb = new System.Text.StringBuilder(t.Length);
-    bool prevSpace = false;
-    foreach (var ch in t)
-    {
-        var c = char.IsWhiteSpace(ch) ? ' ' : ch;
-        if (c == ' ')
-        {
-            if (prevSpace) continue;
-            prevSpace = true;
-        }
-        else prevSpace = false;
-        sb.Append(c);
-    }
-
-    var decomposed = sb.ToString().Normalize(System.Text.NormalizationForm.FormD);
-    var noMarks = new System.Text.StringBuilder(decomposed.Length);
-    foreach (var ch in decomposed)
-        if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) != System.Globalization.UnicodeCategory.NonSpacingMark)
-            noMarks.Append(ch);
-
-    return noMarks.ToString().Normalize(System.Text.NormalizationForm.FormC).ToUpperInvariant();
-}
-
-static async Task<int> RunForDateAsync(HttpClient http, DateTime dateUtc, bool doUpload, string[] args)
+static async Task<int> RunForDateAsync(HttpClient http, DateTime dateUtc, bool doUpload, string[] args, ITitleNormalizationService normalizationService)
 {
     var dateStr = dateUtc.ToString("yyyy-MM-dd");
     var r1 = await AcheiUsaScraper.RunAsync(http, dateStr);
@@ -62,8 +35,8 @@ static async Task<int> RunForDateAsync(HttpClient http, DateTime dateUtc, bool d
         return 0;
     }
 
-    var factory = new SqlConnectionFactory(server!, database!);
-    var repo = new ClassifiedsRepository(factory);
+    var factory = new SqlConnectionFactory(server, database);
+    var repo = new ClassifiedsRepository(factory, normalizationService);
 
     var list1 = ScrapedCsvReader.Load(f1);
     var list2 = ScrapedCsvReader.Load(f2);
@@ -72,19 +45,23 @@ static async Task<int> RunForDateAsync(HttpClient http, DateTime dateUtc, bool d
     var existing = await repo.GetByDayAsync(dateUtc);
     var dbKeysByTitle = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var c in existing)
-        dbKeysByTitle.Add($"{c.PostDate:yyyy-MM-dd}|{NormalizeTitle(c.Title)}");
+        dbKeysByTitle.Add($"{c.PostDate:yyyy-MM-dd}|{normalizationService.Normalize(c.Title)}"); // Normalize PostDate to date-only
 
     var seenBatch = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var toInsert = merged.Where(s =>
     {
-        var key = $"{s.PostDate:yyyy-MM-dd}|{NormalizeTitle(s.Title)}";
+        var key = $"{s.PostDate:yyyy-MM-dd}|{normalizationService.Normalize(s.Title)}"; // Normalize PostDate to date-only
         if (dbKeysByTitle.Contains(key)) return false;
         if (!seenBatch.Add(key)) return false;
         return true;
     }).ToList();
 
     Console.WriteLine($"Registros a inserir ({dateStr}): {toInsert.Count}");
-    foreach (var c in toInsert) await repo.InsertAsync(c);
+    foreach (var c in toInsert)
+    {
+        c.PostDate = c.PostDate; // Ensure PostDate is date-only before insertion
+        await repo.InsertAsync(c);
+    }
     Console.WriteLine($"Inseridos ({dateStr}): {toInsert.Count}");
     return toInsert.Count;
 }
@@ -96,13 +73,14 @@ int wipeDays = 0;
 int.TryParse(wipeEq, out wipeDays);
 var dateEq = ArgEq(args, "date");
 var noUpload = HasFlag(args, "--no-upload");
+var normalizationService = new TitleNormalizationService(); // Simple DI
 
 if (wipeDays > 0)
 {
     using var http = new HttpClient();
     var total = 0;
     for (int i = 0; i < wipeDays; i++)
-        total += await RunForDateAsync(http, DateTime.UtcNow.Date.AddDays(-i), false, args);
+        total += await RunForDateAsync(http, DateTime.UtcNow.Date.AddDays(-i), false, args, normalizationService);
     Console.WriteLine($"Wipe concluído. Dias: {wipeDays}. Inseridos: {total}");
     return;
 }
@@ -116,5 +94,5 @@ else
 
 using (var http = new HttpClient())
 {
-    await RunForDateAsync(http, targetDateUtc, !noUpload, args);
+    await RunForDateAsync(http, targetDateUtc, !noUpload, args, normalizationService);
 }

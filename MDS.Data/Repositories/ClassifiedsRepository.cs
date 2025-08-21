@@ -1,36 +1,72 @@
 ﻿using MDS.Data.Data;
 using MeDeixaSaber.Core.Models;
+using MeDeixaSaber.Core.Services;
 
 namespace MDS.Data.Repositories;
 
 using Dapper;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
-public sealed class ClassifiedsRepository(IDbConnectionFactory factory)
+public sealed class ClassifiedsRepository(IDbConnectionFactory factory, ITitleNormalizationService normalizationService)
+    : IClassifiedsRepository
 {
+    private readonly IDbConnectionFactory _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+
+    private readonly ITitleNormalizationService _normalizationService =
+        normalizationService ?? throw new ArgumentNullException(nameof(normalizationService));
+
     public async Task<IEnumerable<Classified>> GetByDayAsync(DateTime dayUtc)
     {
-        await using var conn = await factory.GetOpenConnectionAsync();
-        return await conn.QueryAsync<Classified>(
-            "select * from dbo.Classifieds where cast(CapturedAtUtc as date)=@d",
+        await using var conn = await _factory.GetOpenConnectionAsync();
+        var classifieds = await conn.QueryAsync<Classified>(
+            "SELECT * FROM dbo.Classifieds WHERE CAST(CapturedAtUtc AS date) = @d",
             new { d = dayUtc.Date });
+        foreach (var classified in classifieds)
+        {
+            classified.Title = _normalizationService.Normalize(classified.Title);
+        }
+
+        return classifieds;
     }
 
     public async Task<IEnumerable<Classified>> GetLatestAsync(int take = 50)
     {
-        await using var conn = await factory.GetOpenConnectionAsync();
+        if (take <= 0) throw new ArgumentOutOfRangeException(nameof(take), "Take must be greater than zero.");
+        await using var conn = await _factory.GetOpenConnectionAsync();
         return await conn.QueryAsync<Classified>(
-            "select top (@take) * from dbo.Classifieds order by Id desc",
+            "SELECT TOP (@take) * FROM dbo.Classifieds ORDER BY Id DESC",
             new { take });
     }
 
     public async Task InsertAsync(Classified entity)
     {
+        if (entity == null) throw new ArgumentNullException(nameof(entity));
+
         const string sql = @"
-        insert into dbo.Classifieds
+        INSERT INTO dbo.Classifieds
         (CapturedAtUtc, Url, Title, RefId, Location, ListingWhen, PostDate, Phone, State, Description, IsDuplicate)
-        values
+        VALUES
         (@CapturedAtUtc, @Url, @Title, @RefId, @Location, @ListingWhen, @PostDate, @Phone, @State, @Description, @IsDuplicate);";
-        await using var conn = await factory.GetOpenConnectionAsync();
-        await conn.ExecuteAsync(sql, entity);
+
+        entity.Title = _normalizationService.Normalize(entity.Title); // Normalize Title before insertion
+        await using var conn = await _factory.GetOpenConnectionAsync();
+        try
+        {
+            await conn.ExecuteAsync(sql, entity);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 2627)
+        {
+            throw new InvalidOperationException(
+                $"Duplicate key violation for PostDate: {entity.PostDate}, Title: {entity.Title}", ex);
+        }
     }
+}
+
+public interface IClassifiedsRepository
+{
+    Task<IEnumerable<Classified>> GetByDayAsync(DateTime dayUtc);
+    Task<IEnumerable<Classified>> GetLatestAsync(int take = 50);
+    Task InsertAsync(Classified entity);
 }

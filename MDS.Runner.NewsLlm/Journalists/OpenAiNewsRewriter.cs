@@ -34,11 +34,11 @@ namespace MDS.Runner.NewsLlm.Journalists
 
             var biasInstr = bias switch
             {
-                EditorialBias.Sensacionalista => "linguagem dramática e chamativa, títulos de forte impacto, ênfase em conflito ou emoção (sem inventar fatos)",
-                EditorialBias.Conservador     => "foco em lei, ordem, tradição e responsabilidade institucional; tom sério e cauteloso",
-                EditorialBias.Progressista    => "foco em direitos civis, justiça social e impacto humano; tom empático e inclusivo",
-                EditorialBias.Agressivo       => "frases curtas, diretas, tom combativo e assertivo",
-                _                             => "tom neutro, objetivo e responsável, com clareza jornalística"
+                EditorialBias.Sensacionalista => "ritmo acelerado, verbos fortes, sem exageros factuais, zero caixa-alta",
+                EditorialBias.Conservador     => "tom sóbrio, ênfase em lei e ordem, custos fiscais e segurança pública",
+                EditorialBias.Progressista    => "tom humanizado, foco em direitos, impacto social e equidade",
+                EditorialBias.Agressivo       => "frases curtas, direto ao ponto, cobre inconsistências e responsabiliza",
+                _                              => "crítico e equilibrado; descreva evidências; evite adjetivos normativos"
             };
 
             var desc = source.Summary ?? string.Empty;
@@ -46,29 +46,31 @@ namespace MDS.Runner.NewsLlm.Journalists
             if (content.Length > MaxContentChars) content = content[..MaxContentChars];
 
             var prompt = $@"Reescreva a notícia abaixo em português (pt-BR), {biasInstr}.
-                Produza 450–650 palavras, sem inventar fatos. Escreva em formato jornalístico PROFISSIONAL:
-                - Título informativo e conciso (sem sensacionalismo).
-                - Lide objetivo no 1º parágrafo (quem, o quê, quando, onde e por quê).
-                - Corpo em 2–4 parágrafos: contexto, números, datas, nomes e medidas concretas.
-                - Se houver na matéria original, inclua 1–2 citações ou paráfrases de autoridades/especialistas.
-                - Evite opinião e adjetivação moralizante; não use perguntas retóricas; não repita ideias.
+                Produza 520–700 palavras, sem inventar fatos ou números. Escreva jornalismo de serviço, claro e preciso.
 
                 Mantenha estes campos exatamente:
                 - Source: ""{source.Source}""
                 - Url: ""{source.Url}""
                 - PublishedAt: ""{source.PublishedAt:yyyy-MM-ddTHH:mm:ssZ}""
 
-                Regras:
-                - Use SOMENTE informações presentes em 'Dados' e no 'Trecho do conteúdo' abaixo.
-                - Não crie fatos, pesquisas, números ou aspas novas.
-                - Respeite a ortografia pt-BR; parágrafos curtos (3–5 linhas).
-                - Resumo (Summary) claro em 1–2 frases.
+                Regras de estilo:
+                - Title: 52–70 caracteres, informativo e sem clickbait.
+                - Summary: 1 frase (máx. 220 caracteres), objetiva, diferente do lide.
+                - Content: Estruture assim (em texto corrido, sem criar novos campos):
+                  1) Lide (2–3 frases) respondendo o quê, quem, onde, quando e por que importa; tom crítico porém factual.
+                  2) Intertítulo: ""Contexto"" — um parágrafo com histórico essencial (sem especular).
+                  3) Intertítulo: ""O que está em jogo"" — lista de 3–5 pontos curtos com impactos práticos/legais/econômicos.
+                  4) Intertítulo: ""O que dizem as partes"" — uma citação curta entre aspas, se existir no texto original; caso não exista, resuma posições sem inventar declarações.
+                  5) Intertítulo: ""Próximos passos"" — indique implicações e o que acompanhar.
+                  6) Fecho com prestação de contas (transparência de limites, ex.: ""não há dados confirmados sobre X no texto original"").
+
+                - Proibições: não invente nomes, números, datas, aspas ou estudos. Se algo não constar no texto original, explicite a ausência (sem preencher com suposições).
 
                 Dados:
                 Título original: {source.Title}
                 Resumo original: {desc}
 
-                Trecho do conteúdo (base factual, sem traduções literais):
+                Trecho do conteúdo (use como base, sem tradução literal):
                 {content}
 
                 Responda APENAS com JSON válido no formato:
@@ -81,6 +83,7 @@ namespace MDS.Runner.NewsLlm.Journalists
                   ""PublishedAt"": ""{source.PublishedAt:yyyy-MM-ddTHH:mm:ssZ}"",
                   ""CreatedAt"": ""{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}""
                 }}";
+
 
             var schema = new
             {
