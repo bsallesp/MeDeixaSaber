@@ -1,11 +1,20 @@
-﻿name: .NET CI (NewsLlm)
-
-on:
+﻿  ![.NET CI (NewsLlm)](https://github.com/bsallespr/MeDeixaSaber/actions/workflows/dotnet-ci-mds-runner-newslm.yml/badge.svg)
+ 
+  on:
   push:
     branches: [ "main" ]
+    paths:
+      - "MDS.Runner.NewsLlm/**"
+      - "MDS.Runner.NewsLlm.Test/**"
+      - "MeDeixaSaber.Core/**"
+      - ".github/workflows/dotnet-ci-mds-runner-newslm.yml"
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:
+    paths:
+      - "MDS.Runner.NewsLlm/**"
+      - "MDS.Runner.NewsLlm.Test/**"
+      - "MeDeixaSaber.Core/**"
+      - ".github/workflows/dotnet-ci-mds-runner-newslm.yml"
 
 concurrency:
   group: ci-newslm-${{ github.ref }}
