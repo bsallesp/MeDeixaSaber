@@ -1,0 +1,58 @@
+﻿name: .NET CI (NewsLlm)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-newslm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/global.json
+            **/NuGet.config
+
+      - name: Restore
+        run: dotnet restore MeDeixaSaber.sln
+
+      - name: Build
+        run: dotnet build MeDeixaSaber.sln -c Release --no-restore
+
+      - name: Test (MDS.Tests) + coverage
+        run: dotnet test MDS.Tests/MDS.Tests.csproj -c Release --no-build --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test_results.trx" --results-directory TestResults
+
+      - name: ReportGenerator (HTML + Cobertura)
+        shell: bash
+        run: |
+          dotnet tool update -g dotnet-reportgenerator-globaltool
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          reportgenerator \
+            -reports:"**/coverage.cobertura.xml" \
+            -targetdir:"Coverage" \
+            -reporttypes:"HtmlInline;Cobertura" || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults-NewsLlm
+          path: |
+            TestResults/**/*.trx
+            **/coverage.cobertura.xml
+            Coverage/**
