@@ -1,4 +1,4 @@
-﻿using MDS.Data.Data;
+﻿using MDS.Data.Context;
 using MeDeixaSaber.Core.Models;
 
 namespace MDS.Data.Repositories;

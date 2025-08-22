@@ -1,6 +1,6 @@
 ﻿using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
-using MDS.Data.Data;
+using MDS.Data.Context;
 using MDS.Data.Repositories;
 using MDS.Runner.NewsLlm.Collectors;
 using MDS.Runner.NewsLlm.Journalists;

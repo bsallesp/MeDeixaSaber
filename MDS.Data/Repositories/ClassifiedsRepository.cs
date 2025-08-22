@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Dapper;
-using MDS.Data.Data;
+using MDS.Data.Context;
 using MeDeixaSaber.Core.Models;
 using MeDeixaSaber.Core.Services;
 
