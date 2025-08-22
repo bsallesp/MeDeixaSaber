@@ -23,11 +23,15 @@ jobs:
         with:
           dotnet-version: '9.0.x'
           cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/global.json
+            **/NuGet.config
 
       - name: Restore
         run: dotnet restore MeDeixaSaber.sln
 
-      - name: Build (solution)
+      - name: Build
         run: dotnet build MeDeixaSaber.sln -c Release --no-restore
 
       - name: Test (MDS.Tests) + coverage
