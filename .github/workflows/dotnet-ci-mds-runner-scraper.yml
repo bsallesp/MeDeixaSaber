@@ -1,14 +1,26 @@
-name: .NET CI
+name: .NET CI (Scraper)
 
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - "MDS.Runner.Scraper/**"
+      - "MDS.Runner.Scraper.Test/**"
+      - "MDS.Data/**"
+      - "MeDeixaSaber.Core/**"
+      - ".github/workflows/dotnet-ci-mds-runner-scraper.yml"
   pull_request:
     branches: [ "main" ]
+    paths:
+      - "MDS.Runner.Scraper/**"
+      - "MDS.Runner.Scraper.Test/**"
+      - "MDS.Data/**"
+      - "MeDeixaSaber.Core/**"
+      - ".github/workflows/dotnet-ci-mds-runner-scraper.yml"
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-scraper-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -34,24 +46,19 @@ jobs:
       - name: Build
         run: dotnet build MeDeixaSaber.sln -c Release --no-restore
 
-      - name: Test (MDS.Tests) + coverage
-        run: dotnet test MDS.Tests/MDS.Tests.csproj -c Release --no-build --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test_results.trx" --results-directory TestResults
+      - name: Test (MDS.Runner.Scraper.Test) + coverage
+        run: dotnet test MDS.Runner.Scraper.Test/MDS.Runner.Scraper.Test.csproj -c Release --no-build --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test_results.trx" --results-directory TestResults
 
-      - name: ReportGenerator (HTML + Cobertura)
-        shell: bash
+      - name: ReportGenerator
         run: |
           dotnet tool update -g dotnet-reportgenerator-globaltool
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          reportgenerator \
-            -reports:"**/coverage.cobertura.xml" \
-            -targetdir:"Coverage" \
-            -reporttypes:"HtmlInline;Cobertura" || true
+          reportgenerator -reports:"**/coverage.cobertura.xml" -targetdir:"Coverage" -reporttypes:"HtmlInline;Cobertura" || true
 
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TestResults
+          name: TestResults-Scraper
           path: |
             TestResults/**/*.trx
             **/coverage.cobertura.xml
