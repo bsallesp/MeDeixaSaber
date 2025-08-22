@@ -1,14 +1,14 @@
 ﻿namespace MeDeixaSaber.Core.Models
 {
-    public class News
+    public sealed class News
     {
         public int Id { get; set; }
-        public string Title { get; set; } = null!;
+        public string Title { get; set; } = string.Empty;
         public string? Summary { get; set; }
-        public string Content { get; set; } = null!;
-        public string Source { get; set; } = null!;
-        public string Url { get; set; } = null!;
-        public string ImageUrl { get; set; } = null!;
+        public string Content { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
         public DateTime PublishedAt { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

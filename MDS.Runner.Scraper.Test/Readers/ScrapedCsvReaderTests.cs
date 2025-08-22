@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
 using MDS.Runner.Scraper.Services;
 
-namespace MDS.Tests.Readers;
+namespace MDS.Runner.Scraper.Test.Readers;
 
 public sealed class ScrapedCsvReaderTests
 {

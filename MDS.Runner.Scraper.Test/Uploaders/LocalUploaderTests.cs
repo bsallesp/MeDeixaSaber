@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
 using MDS.Runner.Scraper.Services;
 
-namespace MDS.Tests.Uploaders;
+namespace MDS.Runner.Scraper.Test.Uploaders;
 
 public sealed class LocalUploaderTests
 {

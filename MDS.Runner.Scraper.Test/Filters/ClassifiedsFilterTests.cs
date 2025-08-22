@@ -4,7 +4,7 @@ using MDS.Runner.Scraper.Services;
 using MeDeixaSaber.Core.Models;
 using MeDeixaSaber.Core.Services;
 
-namespace MDS.Tests.Filters;
+namespace MDS.Runner.Scraper.Test.Filters;
 
 file sealed class FakeNorm : ITitleNormalizationService
 {

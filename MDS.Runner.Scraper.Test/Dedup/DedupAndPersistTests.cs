@@ -6,7 +6,7 @@ using MDS.Data.Repositories;
 using MDS.Runner.Scraper.Services;
 using MeDeixaSaber.Core.Models;
 
-namespace MDS.Tests.Dedup;
+namespace MDS.Runner.Scraper.Test.Dedup;
 
 file sealed class FakeRepo(System.Collections.Generic.IEnumerable<Classified> existing) : IClassifiedsRepository
 {

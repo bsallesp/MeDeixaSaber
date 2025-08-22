@@ -5,7 +5,7 @@ using MeDeixaSaber.Core.Models;
 using MeDeixaSaber.Core.Services;
 using MDS.Data.Repositories;
 
-namespace MDS.Tests.Orchestration;
+namespace MDS.Runner.Scraper.Test.Orchestration;
 
 file sealed class FakeScraper(string fileToReturn) : IScraper
 {

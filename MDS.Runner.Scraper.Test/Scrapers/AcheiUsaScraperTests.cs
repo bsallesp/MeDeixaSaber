@@ -3,7 +3,7 @@ using System.Text;
 using FluentAssertions;
 using MDS.Runner.Scraper.Scrapers.AcheiUsa;
 
-namespace MDS.Tests.Scrapers;
+namespace MDS.Runner.Scraper.Test.Scrapers;
 
 file sealed class MappingHandler(Dictionary<string, string> map) : HttpMessageHandler
 {

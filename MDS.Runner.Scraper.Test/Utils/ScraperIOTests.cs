@@ -3,7 +3,7 @@ using System.Text;
 using FluentAssertions;
 using MDS.Runner.Scraper.Utils;
 
-namespace MDS.Tests.Utils;
+namespace MDS.Runner.Scraper.Test.Utils;
 
 public sealed class ScraperIoTests
 {

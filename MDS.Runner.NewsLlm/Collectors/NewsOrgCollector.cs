@@ -2,21 +2,39 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using MDS.Runner.NewsLlm.Persisters;
 using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.NewsLlm.Collectors
 {
+    public interface ISecretReader
+    {
+        Task<string> GetAsync(string secretName, CancellationToken ct = default);
+    }
+
+    public sealed class SecretReader(SecretClient client) : ISecretReader
+    {
+        readonly SecretClient _client = client ?? throw new ArgumentNullException(nameof(client));
+        public async Task<string> GetAsync(string secretName, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(secretName)) throw new ArgumentException("Required", nameof(secretName));
+            var v = (await _client.GetSecretAsync(secretName, cancellationToken: ct)).Value.Value ?? string.Empty;
+            return v;
+        }
+    }
+
     public interface INewsOrgCollector
     {
         Task<NewsApiResponse?> RunAsync(string secretName, CancellationToken ct = default);
     }
 
-    public sealed class NewsOrgCollector(SecretClient secrets, IBlobSaver blobSaver) : INewsOrgCollector
+    public sealed class NewsOrgCollector(ISecretReader secrets, IBlobSaver blobSaver, HttpClient http) : INewsOrgCollector
     {
-        readonly SecretClient _secrets = secrets ?? throw new ArgumentNullException(nameof(secrets));
+        readonly ISecretReader _secrets = secrets ?? throw new ArgumentNullException(nameof(secrets));
         readonly IBlobSaver _blobSaver = blobSaver ?? throw new ArgumentNullException(nameof(blobSaver));
+        readonly HttpClient _http = http ?? throw new ArgumentNullException(nameof(http));
 
         public async Task<NewsApiResponse?> RunAsync(string secretName, CancellationToken ct = default)
         {
@@ -28,19 +46,16 @@ namespace MDS.Runner.NewsLlm.Collectors
             var totalSw = Stopwatch.StartNew();
 
             var kvSw = Stopwatch.StartNew();
-            var endpoint = (await _secrets.GetSecretAsync(secretName, cancellationToken: ct)).Value.Value ?? string.Empty;
+            var endpoint = await _secrets.GetAsync(secretName, ct);
             kvSw.Stop();
             Console.WriteLine($"[KV ok] id={runId} len={endpoint.Length} ms={kvSw.ElapsedMilliseconds}");
-
-            using var http = new HttpClient();
-            http.Timeout = TimeSpan.FromSeconds(60);
 
             using var req = new HttpRequestMessage(HttpMethod.Get, endpoint);
             req.Headers.UserAgent.Add(new ProductInfoHeaderValue("MDS.Runner.NewsLlm", "1.0"));
             req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var httpSw = Stopwatch.StartNew();
-            using var resp = await http.SendAsync(req, ct);
+            using var resp = await _http.SendAsync(req, ct);
             var body = await resp.Content.ReadAsStringAsync(ct);
             httpSw.Stop();
 
@@ -75,9 +90,10 @@ namespace MDS.Runner.NewsLlm.Collectors
 
         public static NewsOrgCollector Create(string vaultUrl)
         {
-            var secrets = new SecretClient(new Uri(vaultUrl), new Azure.Identity.DefaultAzureCredential());
+            var secrets = new SecretClient(new Uri(vaultUrl), new DefaultAzureCredential());
             var saver = BlobSaver.Create("mdsprodstg04512", "news-org");
-            return new NewsOrgCollector(secrets, saver);
+            var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+            return new NewsOrgCollector(new SecretReader(secrets), saver, http);
         }
     }
 }
