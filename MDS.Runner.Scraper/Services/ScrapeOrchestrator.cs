@@ -29,10 +29,16 @@ public sealed class ScrapeOrchestrator(
     IScrapedCsvReader reader,
     IStorageUploader? uploader)
 {
-    readonly ITitleNormalizationService _norm = norm;
-
     public async Task<int> RunForDateAsync(HttpClient http, DateTime dateUtc, bool doUpload)
     {
+        if (http is null) throw new ArgumentNullException(nameof(http));
+        if (scraper1 is null) throw new ArgumentNullException(nameof(scraper1));
+        if (scraper2 is null) throw new ArgumentNullException(nameof(scraper2));
+        if (repo is null) throw new ArgumentNullException(nameof(repo));
+        if (filter is null) throw new ArgumentNullException(nameof(filter));
+        if (reader is null) throw new ArgumentNullException(nameof(reader));
+        _ = norm ?? throw new ArgumentNullException(nameof(norm));
+
         var dateStr = dateUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
         var f1 = await scraper1.RunAsync(http, dateStr);
@@ -44,12 +50,12 @@ public sealed class ScrapeOrchestrator(
             await uploader.SaveAsync("opajuda", f2);
         }
 
-        var list1 = reader.Load(f1);
-        var list2 = reader.Load(f2);
+        var list1 = reader.Load(f1) ?? Enumerable.Empty<Classified>();
+        var list2 = reader.Load(f2) ?? Enumerable.Empty<Classified>();
         var merged = list1.Concat(list2);
 
         var existing = await repo.GetByDayAsync(dateUtc);
-        var toInsert = filter.Filter(merged, existing);
+        var toInsert = filter.Filter(merged, existing).ToList();
 
         foreach (var c in toInsert)
             await repo.InsertAsync(c);

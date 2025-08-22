@@ -7,7 +7,7 @@ namespace MDS.Runner.Scraper.Scrapers.OpAjuda;
 
 public static class OpAjudaScraper
 {
-    private static string Clean(string s) =>
+    private static string Clean(string? s) =>
         Regex.Replace(HtmlEntity.DeEntitize(s ?? ""), @"\s+", " ").Trim();
 
     private static string? ToIsoDate(string? s)
@@ -26,10 +26,10 @@ public static class OpAjudaScraper
     private static (string title, string state, string description, string date) ParseItem(HtmlDocument doc)
     {
         var box = doc?.DocumentNode?.SelectSingleNode("//div[contains(@class,'rounded-md') and contains(@class,'p-4')]");
-        var title = Clean(box?.SelectSingleNode(".//li[contains(@class,'text-2xl')]")?.InnerText ?? "");
-        var state = Clean(box?.SelectSingleNode(".//li[contains(@class,'uppercase')][2]")?.InnerText ?? "");
-        var description = Clean(box?.SelectSingleNode(".//li[p]")?.InnerText ?? "");
-        var dateText = Clean(box?.SelectSingleNode(".//li[contains(.,'Ativo desde o dia')]")?.InnerText ?? "");
+        var title = Clean(box?.SelectSingleNode(".//li[contains(@class,'text-2xl')]")?.InnerText);
+        var state = Clean(box?.SelectSingleNode(".//li[contains(@class,'uppercase')][2]")?.InnerText);
+        var description = Clean(box?.SelectSingleNode(".//li[p]")?.InnerText);
+        var dateText = Clean(box?.SelectSingleNode(".//li[contains(.,'Ativo desde o dia')]")?.InnerText);
         var m = Regex.Match(dateText, @"\b\d{2}/\d{2}/\d{4}\b");
         var date = m.Success ? m.Value : "";
         return (title, state, description, date);
@@ -41,7 +41,8 @@ public static class OpAjudaScraper
         if (string.IsNullOrWhiteSpace(html)) return result;
         var doc = new HtmlDocument();
         try { doc.LoadHtml(html); } catch { return result; }
-        var anchors = doc.DocumentNode?.SelectNodes("//a") ?? new HtmlNodeCollection(null);
+
+        var anchors = doc.DocumentNode.SelectNodes("//a") ?? new HtmlNodeCollection(null);
         foreach (var a in anchors)
         {
             var href = a?.GetAttributeValue("href", "")?.Trim();
@@ -55,7 +56,7 @@ public static class OpAjudaScraper
         }
         return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
-
+    
     private static string RefIdFromUrl(string u)
     {
         var m = Regex.Match(u ?? "", @"/classified-show/(\d+)", RegexOptions.IgnoreCase);
@@ -63,130 +64,129 @@ public static class OpAjudaScraper
     }
 
     public static async Task<object> RunAsync(HttpClient http, string today)
-{
-    var categories = new[]
     {
-        "https://oportunidadeeajuda.com/classified/EMPREGO",
-        "https://oportunidadeeajuda.com/classified/ALUGUEIS",
-        "https://oportunidadeeajuda.com/classified/ZONALIVRE",
-        "https://oportunidadeeajuda.com/classified/CARROS",
-        "https://oportunidadeeajuda.com/classified/SERVICOS",
-        "https://oportunidadeeajuda.com/classified/DOACOES"
-    };
-
-    var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss");
-    var outDir = ScraperIO.GetOutputDir();
-    var itemsFile = Path.Combine(outDir, $"opajuda-items-{stamp}.csv");
-    var logFile   = Path.Combine(outDir, $"opajuda-log-{stamp}.txt");
-    var logLock  = new SemaphoreSlim(1, 1);
-    var dataLock = new SemaphoreSlim(1, 1);
-    var totalItems = 0;
-    var pages = 0;
-
-    await ScraperIO.AppendToFile(itemsFile,
-        ScraperIO.Csv("captured_at_utc","url","title","ref_id","location","when","post_date","phone","state","description"),
-        dataLock);
-
-    var seenRefIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    var seenUrls   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-    string PageUrl(string baseUrl, int p)
-    {
-        var b = baseUrl.TrimEnd('/');
-        if (p == 1) return b + "/";
-        return b.Contains("?") ? $"{b}&page={p}" : $"{b}?page={p}";
-    }
-
-    foreach (var cat in categories)
-    {
-        int emptyStreak = 0;
-
-        for (var page = 1; page <= 300; page++)
+        var categories = new[]
         {
-            var url = PageUrl(cat, page);
-            string html;
-            try
-            {
-                await ScraperIO.AppendToFile(logFile, $"{ScraperIO.NowIso()}\tPAGE_START\t{url}", logLock);
-                html = await http.GetStringAsync(url);
-            }
-            catch (Exception ex)
-            {
-                await ScraperIO.AppendToFile(logFile, $"{ScraperIO.NowIso()}\tPAGE_FAIL\t{url}\t{ex.Message}", logLock);
-                break;
-            }
+            "https://oportunidadeeajuda.com/classified/EMPREGO",
+            "https://oportunidadeeajuda.com/classified/ALUGUEIS",
+            "https://oportunidadeeajuda.com/classified/ZONALIVRE",
+            "https://oportunidadeeajuda.com/classified/CARROS",
+            "https://oportunidadeeajuda.com/classified/SERVICOS",
+            "https://oportunidadeeajuda.com/classified/DOACOES"
+        };
 
-            var links = ExtractLinks(html, new Uri(url));
-            if (links.Count == 0)
+        var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss");
+        var outDir = ScraperIO.GetOutputDir();
+        var itemsFile = Path.Combine(outDir, $"opajuda-items-{stamp}.csv");
+        var logFile   = Path.Combine(outDir, $"opajuda-log-{stamp}.txt");
+        var logLock  = new SemaphoreSlim(1, 1);
+        var dataLock = new SemaphoreSlim(1, 1);
+        var totalItems = 0;
+        var pages = 0;
+
+        await ScraperIO.AppendToFile(itemsFile,
+            ScraperIO.Csv("captured_at_utc","url","title","ref_id","location","when","post_date","phone","state","description"),
+            dataLock);
+
+        var seenRefIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenUrls   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        string PageUrl(string baseUrl, int p)
+        {
+            var b = baseUrl.TrimEnd('/');
+            if (p == 1) return b + "/";
+            return b.Contains("?") ? $"{b}&page={p}" : $"{b}?page={p}";
+        }
+
+        foreach (var cat in categories)
+        {
+            int emptyStreak = 0;
+
+            for (var page = 1; page <= 300; page++)
             {
-                emptyStreak++;
-                if (emptyStreak >= 2) break;
-                continue;
-            }
-
-            var sem = new SemaphoreSlim(6);
-            var pageNew = 0;
-
-            var tasks = links.Select(async link =>
-            {
-                var refFromLink = RefIdFromUrl(link);
-                if (!string.IsNullOrWhiteSpace(refFromLink) && !seenRefIds.Add(refFromLink)) return;
-                if (string.IsNullOrWhiteSpace(refFromLink) && !seenUrls.Add(link)) return;
-
-                await sem.WaitAsync();
+                var url = PageUrl(cat, page);
+                string html;
                 try
                 {
-                    string itemHtml;
-                    try { itemHtml = await http.GetStringAsync(link); }
-                    catch { return; }
-
-                    var d = new HtmlDocument();
-                    d.LoadHtml(itemHtml);
-                    var (title, state, description, date) = ParseItem(d);
-
-                    var postDate = ToIsoDate(date);
-                    if (postDate != today) return; // <<< só pega o dia atual
-
-                    var line = ScraperIO.Csv(
-                        ScraperIO.NowIso(),
-                        link,
-                        title,
-                        refFromLink,
-                        "",
-                        "",
-                        postDate ?? "",
-                        "",
-                        state,
-                        description
-                    );
-
-                    await ScraperIO.AppendToFile(itemsFile, line, dataLock);
-
-                    Interlocked.Increment(ref totalItems);
-                    Interlocked.Increment(ref pageNew);
+                    await ScraperIO.AppendToFile(logFile, $"{ScraperIO.NowIso()}\tPAGE_START\t{url}", logLock);
+                    html = await http.GetStringAsync(url);
                 }
-                finally
+                catch (Exception ex)
                 {
-                    sem.Release();
+                    await ScraperIO.AppendToFile(logFile, $"{ScraperIO.NowIso()}\tPAGE_FAIL\t{url}\t{ex.Message}", logLock);
+                    break;
                 }
-            });
 
-            await Task.WhenAll(tasks);
-            pages++;
+                var links = ExtractLinks(html, new Uri(url));
+                if (links.Count == 0)
+                {
+                    emptyStreak++;
+                    if (emptyStreak >= 2) break;
+                    continue;
+                }
 
-            if (pageNew == 0)
-            {
-                emptyStreak++;
-                if (emptyStreak >= 1) break; // <<< encerra categoria quando não tem nenhum do dia
-            }
-            else
-            {
-                emptyStreak = 0;
+                var sem = new SemaphoreSlim(6);
+                var pageNew = 0;
+
+                var tasks = links.Select(async link =>
+                {
+                    var refFromLink = RefIdFromUrl(link);
+                    if (!string.IsNullOrWhiteSpace(refFromLink) && !seenRefIds.Add(refFromLink)) return;
+                    if (string.IsNullOrWhiteSpace(refFromLink) && !seenUrls.Add(link)) return;
+
+                    await sem.WaitAsync();
+                    try
+                    {
+                        string itemHtml;
+                        try { itemHtml = await http.GetStringAsync(link); }
+                        catch { return; }
+
+                        var d = new HtmlDocument();
+                        d.LoadHtml(itemHtml);
+                        var (title, state, description, date) = ParseItem(d);
+
+                        var postDate = ToIsoDate(date);
+                        if (postDate != today) return;
+
+                        var line = ScraperIO.Csv(
+                            ScraperIO.NowIso(),
+                            link,
+                            title,
+                            refFromLink,
+                            "",
+                            "",
+                            postDate ?? "",
+                            "",
+                            state,
+                            description
+                        );
+
+                        await ScraperIO.AppendToFile(itemsFile, line, dataLock);
+
+                        Interlocked.Increment(ref totalItems);
+                        Interlocked.Increment(ref pageNew);
+                    }
+                    finally
+                    {
+                        sem.Release();
+                    }
+                });
+
+                await Task.WhenAll(tasks);
+                pages++;
+
+                if (pageNew == 0)
+                {
+                    emptyStreak++;
+                    if (emptyStreak >= 1) break;
+                }
+                else
+                {
+                    emptyStreak = 0;
+                }
             }
         }
+
+        return new { site = "opajuda", date = today, pages, totalItems, itemsFile, logFile };
     }
-
-    return new { site = "opajuda", date = today, pages, totalItems, itemsFile, logFile };
-}
-
 }

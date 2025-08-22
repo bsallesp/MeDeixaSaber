@@ -1,7 +1,7 @@
 ﻿using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
+using MDS.Runner.Scraper.Utils;
 
 namespace MDS.Runner.Scraper.Scrapers.AcheiUsa;
 
@@ -19,31 +19,6 @@ public static class AcheiUsaScraper
     static string Clean(string? s) =>
         Regex.Replace(HtmlEntity.DeEntitize(s ?? ""), @"\s+", " ").Trim();
 
-    static string NowIso() => DateTime.UtcNow.ToString("O");
-
-    static async Task AppendToFile(string file, string line, SemaphoreSlim gate)
-    {
-        var dir = Path.GetDirectoryName(file);
-        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-        await gate.WaitAsync();
-        try
-        {
-            await File.AppendAllTextAsync(file, line + Environment.NewLine, Encoding.UTF8);
-        }
-        finally
-        {
-            gate.Release();
-        }
-    }
-
-    static string CsvEscape(string? s)
-    {
-        s ??= "";
-        var needsQuote = s.Contains('"') || s.Contains(',') || s.Contains('\n') || s.Contains('\r');
-        var val = s.Replace("\"", "\"\"");
-        return needsQuote ? $"\"{val}\"" : val;
-    }
-
     static string? DerivePostDateFromWhen(string? whenText, DateTime? todayUtc = null)
     {
         if (string.IsNullOrWhiteSpace(whenText)) return null;
@@ -56,17 +31,16 @@ public static class AcheiUsaScraper
 
         var mRel = Regex.Match(whenText,
             @"(?i)\b(\d+)\s+(hora|horas|dia|dias|semana|semanas|m[eê]s|meses|ano|anos)\s+atr[aá]s\b");
-        if (mRel.Success)
-        {
-            var qty = int.Parse(mRel.Groups[1].Value);
-            var unit = mRel.Groups[2].Value.ToLowerInvariant();
-            var baseDate = todayUtc.Value;
-            if (unit.StartsWith("hora")) return baseDate.AddHours(-qty).ToString("yyyy-MM-dd");
-            if (unit.StartsWith("dia")) return baseDate.AddDays(-qty).ToString("yyyy-MM-dd");
-            if (unit.StartsWith("semana")) return baseDate.AddDays(-7 * qty).ToString("yyyy-MM-dd");
-            if (unit.StartsWith("m")) return baseDate.AddMonths(-qty).ToString("yyyy-MM-dd");
-            if (unit.StartsWith("ano")) return baseDate.AddYears(-qty).ToString("yyyy-MM-dd");
-        }
+        if (!mRel.Success) return null;
+
+        var qty = int.Parse(mRel.Groups[1].Value);
+        var unit = mRel.Groups[2].Value.ToLowerInvariant();
+        var baseDate = todayUtc.Value;
+        if (unit.StartsWith("hora")) return baseDate.AddHours(-qty).ToString("yyyy-MM-dd");
+        if (unit.StartsWith("dia")) return baseDate.AddDays(-qty).ToString("yyyy-MM-dd");
+        if (unit.StartsWith("semana")) return baseDate.AddDays(-7 * qty).ToString("yyyy-MM-dd");
+        if (unit.StartsWith("m")) return baseDate.AddMonths(-qty).ToString("yyyy-MM-dd");
+        if (unit.StartsWith("ano")) return baseDate.AddYears(-qty).ToString("yyyy-MM-dd");
         return null;
     }
 
@@ -83,6 +57,7 @@ public static class AcheiUsaScraper
         var og = doc.DocumentNode.SelectSingleNode("//meta[@property='og:title' or @name='og:title']")
             ?.GetAttributeValue("content", null);
         if (!string.IsNullOrWhiteSpace(og)) return Clean(og);
+
         var pageTitle = Clean(doc.DocumentNode.SelectSingleNode("//title")?.InnerText ?? "");
         if (!string.IsNullOrWhiteSpace(pageTitle))
         {
@@ -90,6 +65,7 @@ public static class AcheiUsaScraper
                 RegexOptions.IgnoreCase);
             if (!string.IsNullOrWhiteSpace(pageTitle)) return pageTitle;
         }
+
         var h = doc.DocumentNode.SelectSingleNode(
                     "//h1[contains(@class,'title') or contains(@class,'entry-title') or contains(@class,'ad-title') or contains(@class,'single')]")
                 ?? doc.DocumentNode.SelectSingleNode("//h1|//h2|//h3");
@@ -174,20 +150,20 @@ public static class AcheiUsaScraper
 
     public static async Task<ScraperResult> RunAsync(HttpClient http, string today)
     {
-        var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss");
-        var itemsCsv = Path.Combine("/tmp", $"acheiusa-items-{stamp}.csv");
-        var logFile = Path.Combine("/tmp", $"acheiusa-log-{stamp}.txt");
+        var outDir = ScraperIO.GetOutputDir();
+        var stamp = $"{DateTime.UtcNow:yyyy-MM-dd-HH-mm-ss-fffffff}-{Guid.NewGuid():N}";
+        var itemsCsv = Path.Combine(outDir, $"acheiusa-items-{stamp}.csv");
+        var logFile = Path.Combine(outDir, $"acheiusa-log-{stamp}.txt");
 
         var logLock = new SemaphoreSlim(1, 1);
         var dataLock = new SemaphoreSlim(1, 1);
 
-        await AppendToFile(itemsCsv,
+        await ScraperIO.AppendToFile(itemsCsv,
             string.Join(",", "captured_at_utc", "url", "title", "ref_id", "location", "when", "post_date", "phone",
                 "state", "description"),
             dataLock);
 
-        // sempre cria o log
-        await AppendToFile(logFile, $"{NowIso()}\tRUN_START", logLock);
+        await ScraperIO.AppendToFile(logFile, $"{ScraperIO.NowIso()}\tRUN_START", logLock);
 
         var totalItems = 0;
         var pages = 0;
@@ -200,17 +176,28 @@ public static class AcheiUsaScraper
         {
             var itemHtml = await http.GetStringAsync(link.url);
             var (title, description, refId, phone, _, _, postDate) = ParseItem(link.url, itemHtml);
-            if (postDate != today) continue;
+            var finalPostDate = postDate ?? DerivePostDateFromWhen(string.Empty);
+            if (finalPostDate != today) continue;
+
             var line = string.Join(",",
-                CsvEscape(NowIso()), CsvEscape(link.url), CsvEscape(title),
-                CsvEscape(refId), "", "", CsvEscape(postDate), CsvEscape(phone), "", CsvEscape(description));
-            await AppendToFile(itemsCsv, line, dataLock);
+                ScraperIO.CsvEscape(ScraperIO.NowIso()),
+                ScraperIO.CsvEscape(link.url),
+                ScraperIO.CsvEscape(title),
+                ScraperIO.CsvEscape(refId),
+                ScraperIO.CsvEscape(""),
+                ScraperIO.CsvEscape(""),
+                ScraperIO.CsvEscape(finalPostDate),
+                ScraperIO.CsvEscape(phone),
+                ScraperIO.CsvEscape(""),
+                ScraperIO.CsvEscape(description));
+
+            await ScraperIO.AppendToFile(itemsCsv, line, dataLock);
             totalItems++;
         }
 
         pages++;
 
-        await AppendToFile(logFile, $"{NowIso()}\tRUN_SUMMARY\tpages={pages}\ttotalItems={totalItems}", logLock);
+        await ScraperIO.AppendToFile(logFile, $"{ScraperIO.NowIso()}\tRUN_SUMMARY\tpages={pages}\ttotalItems={totalItems}", logLock);
 
         return new ScraperResult("acheiusa", today, pages, totalItems, itemsCsv, logFile);
     }

@@ -1,15 +1,18 @@
-﻿using FluentAssertions;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
+using FluentAssertions;
+using MDS.Data.Repositories;
 using MDS.Runner.Scraper.Services;
 using MeDeixaSaber.Core.Models;
-using MDS.Data.Repositories;
 
 namespace MDS.Tests.Dedup;
 
-file sealed class FakeRepo(IEnumerable<Classified> existing) : IClassifiedsRepository
+file sealed class FakeRepo(System.Collections.Generic.IEnumerable<Classified> existing) : IClassifiedsRepository
 {
-    public readonly List<Classified> Inserts = new();
-    public Task<IEnumerable<Classified>> GetByDayAsync(DateTime dayUtc) => Task.FromResult(existing);
-    public Task<IEnumerable<Classified>> GetLatestAsync(int take = 50) => Task.FromResult<IEnumerable<Classified>>(Array.Empty<Classified>());
+    public readonly System.Collections.Generic.List<Classified> Inserts = new();
+    public Task<System.Collections.Generic.IEnumerable<Classified>> GetByDayAsync(DateTime dayUtc) => Task.FromResult(existing);
+    public Task<System.Collections.Generic.IEnumerable<Classified>> GetLatestAsync(int take = 50) => Task.FromResult<System.Collections.Generic.IEnumerable<Classified>>(Array.Empty<Classified>());
     public Task InsertAsync(Classified entity) { Inserts.Add(entity); return Task.CompletedTask; }
 }
 
@@ -51,7 +54,7 @@ public sealed class DedupAndPersistTests
         var repo = new FakeRepo(existing);
         var svc = new DedupAndPersist(repo);
 
-        var inserted = await svc.UpsertNewAsync(scraped, new DateTime(2025,8,20));
+        var inserted = await svc.UpsertNewAsync(scraped, new DateTime(2025, 8, 20));
 
         inserted.Should().Be(2);
         repo.Inserts.Select(x => x.Title).Should().BeEquivalentTo(new[] { "Casa 3Q Deerfield", "Apto 2Q Boca" });

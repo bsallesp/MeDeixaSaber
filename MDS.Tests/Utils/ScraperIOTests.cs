@@ -32,7 +32,7 @@ public sealed class ScraperIoTests
         dir.Should().Be(custom);
         Directory.Exists(dir).Should().BeTrue();
 
-        Environment.SetEnvironmentVariable("OUTPUT_DIR", null); // cleanup
+        Environment.SetEnvironmentVariable("OUTPUT_DIR", null);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class ScraperIoTests
     [Fact]
     public async Task AppendToFile_Creates_Directory_And_Appends()
     {
-        var path = NewTempFilePath(); // directory may not exist yet
+        var path = NewTempFilePath();
 
         await ScraperIO.AppendToFile(path, "a,b,c");
         await ScraperIO.AppendToFile(path, "1,2,3");
@@ -95,12 +95,10 @@ public sealed class ScraperIoTests
     public void NowIso_Is_Utc_Iso8601_Roundtrippable()
     {
         var s = ScraperIO.NowIso();
-        // Deve terminar com 'Z' e ser RoundtripKind
         s.EndsWith("Z").Should().BeTrue();
 
         var dt = DateTime.Parse(s, null, DateTimeStyles.RoundtripKind);
         dt.Kind.Should().Be(DateTimeKind.Utc);
-        // tolerância pequena: valor deve estar dentro de alguns segundos do UtcNow
         (DateTime.UtcNow - dt).Should().BeLessThan(TimeSpan.FromSeconds(5));
     }
 }
