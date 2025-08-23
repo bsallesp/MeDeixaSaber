@@ -14,7 +14,7 @@ builder.Services.AddControllers();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendOnly", p =>
-        p.WithOrigins("https://seu-front.app")
+        p.WithOrigins("http://localhost:4200/")
          .AllowAnyHeader()
          .AllowAnyMethod());
 });
