@@ -1,0 +1,57 @@
+﻿name: .NET CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-test:
+    name: Build & Test Solution
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore MeDeixaSaber.sln
+
+      - name: Build
+        run: dotnet build MeDeixaSaber.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test MeDeixaSaber.sln --configuration Release --no-build --collect:"XPlat Code Coverage"
+
+  deploy-api:
+    name: Deploy API
+    needs: build-test
+    if: contains(github.event.head_commit.message, 'MDS.Api') || github.event.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "🚀 Deploy MDS.Api (substituir por comando real)"
+
+  deploy-newsllm:
+    name: Deploy NewsLlm
+    needs: build-test
+    if: contains(github.event.head_commit.message, 'MDS.Runner.NewsLlm')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "🚀 Deploy MDS.Runner.NewsLlm (substituir por comando real)"
+
+  deploy-scraper:
+    name: Deploy Scraper
+    needs: build-test
+    if: contains(github.event.head_commit.message, 'MDS.Runner.Scraper')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "🚀 Deploy MDS.Runner.Scraper (substituir por comando real)"

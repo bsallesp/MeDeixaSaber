@@ -17,3 +17,9 @@
       context: .
       dockerfile: MDS.Runner.NewsLlm/Dockerfile
 
+  mds.api:
+    image: mds.api
+    build:
+      context: .
+      dockerfile: MDS.Api/Dockerfile
+
