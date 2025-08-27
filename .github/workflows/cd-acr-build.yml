@@ -1,0 +1,43 @@
+﻿name: cd-acr-build
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  ACR_NAME: mdsprodacr
+  REGISTRY: mdsprodacr.azurecr.io
+  IMAGE_NAME: mds-runner-news
+  RG: mds-prod
+  JOB: mds-runner-news
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Cloud Build (no runner docker needed)
+        run: |
+          az acr build \
+            -r $ACR_NAME \
+            -f MDS.Runner.NewsLlm/Dockerfile \
+            -t $IMAGE_NAME:${{ github.sha }} \
+            -t $IMAGE_NAME:latest \
+            .
+
+      - name: Update Container Apps Job
+        run: |
+          az extension add --name containerapp --upgrade
+          az containerapp job update \
+            -g $RG -n $JOB \
+            --image $REGISTRY/$IMAGE_NAME:${{ github.sha }} \
+            --registry-server $REGISTRY
