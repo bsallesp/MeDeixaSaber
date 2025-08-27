@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using MDS.Runner.NewsLlm.Collectors;
 using MDS.Runner.NewsLlm.Journalists;
+using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MeDeixaSaber.Core.Models;
 using Moq;
 using Xunit;
@@ -33,9 +34,13 @@ namespace MDS.Runner.NewsLlm.Test.Program
         }
 
         [Fact]
-        public async Task RunAsync_WhenOk_RewritesAndPersists_ReturnsCount()
+        public async Task RunAsync_WhenOk_RewritesAndPersistsOneByOne_ReturnsCount()
         {
-            var payload = new NewsApiResponse { Articles = [ new NewsArticle { Title = "t", Url = "https://x" } ] };
+            var payload = new NewsApiResponse
+            {
+                Articles = [ new NewsArticle { Title = "t", Url = "https://x" } ]
+            };
+
             var rewritten = new List<News>
             {
                 new() { Title = "rt1", Content = "c", Source = "S", Url = "https://x/1", PublishedAt = DateTime.UtcNow }
@@ -50,7 +55,7 @@ namespace MDS.Runner.NewsLlm.Test.Program
                       .ReturnsAsync(rewritten);
 
             var sink = new Mock<IArticleSink>();
-            sink.Setup(s => s.InsertManyAsync(It.Is<IEnumerable<News>>(n => n.SequenceEqual(rewritten))))
+            sink.Setup(s => s.InsertManyAsync(It.Is<IEnumerable<News>>(n => n.Single().Title == "rt1")))
                 .Returns(Task.CompletedTask)
                 .Verifiable();
 
@@ -64,7 +69,7 @@ namespace MDS.Runner.NewsLlm.Test.Program
             var count = await sut.RunAsync();
 
             count.Should().Be(1);
-            sink.Verify();
+            sink.Verify(s => s.InsertManyAsync(It.IsAny<IEnumerable<News>>()), Times.Exactly(1));
         }
     }
 }

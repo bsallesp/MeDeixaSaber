@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using FluentAssertions;
-using MeDeixaSaber.Core.Models;
+﻿using FluentAssertions;
 using MDS.Runner.NewsLlm.Journalists;
+using MeDeixaSaber.Core.Models;
 using Moq;
 using Xunit;
 
-namespace MDS.Tests.Journalists
+namespace MDS.Runner.NewsLlm.Test.Journalists
 {
     public sealed class JournalistTests
     {
@@ -59,7 +54,7 @@ namespace MDS.Tests.Journalists
         }
 
         [Fact]
-        public async Task WriteAsync_TakesTop10_MapsAndRewrites()
+        public async Task WriteAsync_TakesUpTo30_MapsAndRewrites()
         {
             var articles = Enumerable.Range(1, 12).Select(Art).ToList();
             var payload = new NewsApiResponse { Articles = articles };
@@ -86,7 +81,7 @@ namespace MDS.Tests.Journalists
             var sut = new Journalist(mapper.Object, rewriter.Object);
             var result = await sut.WriteAsync(payload, EditorialBias.Neutro);
 
-            result.Count.Should().Be(10);
+            result.Count.Should().Be(12);
         }
 
         [Fact]

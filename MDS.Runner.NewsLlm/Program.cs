@@ -4,6 +4,7 @@ using MDS.Data.Context;
 using MDS.Data.Repositories;
 using MDS.Runner.NewsLlm.Collectors;
 using MDS.Runner.NewsLlm.Journalists;
+using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MDS.Runner.NewsLlm.Persisters;
 using MeDeixaSaber.Core.Models;
 
@@ -35,9 +36,24 @@ namespace MDS.Runner.NewsLlm
         {
             var payload = await collector.RunAsync("endpoint-newsapi-org-everything", ct);
             if (payload is null) return 0;
+
             var rewritten = await journalist.WriteAsync(payload, EditorialBias.Neutro, ct);
-            await sink.InsertManyAsync(rewritten);
-            return rewritten.Count;
+            var count = 0;
+
+            foreach (var item in rewritten.Take(30))
+            {
+                try
+                {
+                    await sink.InsertManyAsync([item]);
+                    count++;
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            return count;
         }
     }
 

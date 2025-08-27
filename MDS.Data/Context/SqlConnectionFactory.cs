@@ -5,9 +5,9 @@ using Microsoft.Data.SqlClient;
 
 namespace MDS.Data.Context;
 
-public sealed class SqlConnectionFactory(string server, string database) : IDbConnectionFactory
+public sealed class SqlConnectionFactory(string server, string database, TokenCredential? credential = null) : IDbConnectionFactory
 {
-    readonly TokenCredential _credential = new ManagedIdentityCredential();
+    private readonly TokenCredential _credential = credential ?? new DefaultAzureCredential();
 
     public async Task<DbConnection> GetOpenConnectionAsync(CancellationToken ct = default)
     {

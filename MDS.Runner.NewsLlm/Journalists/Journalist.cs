@@ -1,12 +1,8 @@
-﻿using MeDeixaSaber.Core.Models;
+﻿using MDS.Runner.NewsLlm.Journalists.Interfaces;
+using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.NewsLlm.Journalists
 {
-    public interface IJournalist
-    {
-        Task<IReadOnlyCollection<News>> WriteAsync(NewsApiResponse payload, EditorialBias bias, CancellationToken ct = default);
-    }
-
     public sealed class Journalist(INewsMapper mapper, IOpenAiNewsRewriter rewriter) : IJournalist
     {
         private readonly INewsMapper _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
@@ -17,12 +13,13 @@ namespace MDS.Runner.NewsLlm.Journalists
             ArgumentNullException.ThrowIfNull(payload);
 
             var articles = payload.Articles ?? [];
-            if (articles.Count == 0) return Array.Empty<News>();
+            if (articles.Count == 0) return [];
 
             var sources = articles
+                .OrderByDescending(a => a.PublishedAt)
+                .Take(30)
                 .Select(a => _mapper.Map(a))
                 .OfType<News>()
-                .Take(10)
                 .ToList();
 
             var results = new List<News>(capacity: sources.Count);
@@ -37,6 +34,7 @@ namespace MDS.Runner.NewsLlm.Journalists
                 }
                 catch
                 {
+                    // ignored
                 }
             }
 
