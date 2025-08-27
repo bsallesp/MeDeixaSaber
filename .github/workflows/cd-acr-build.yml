@@ -39,5 +39,4 @@ jobs:
           az extension add --name containerapp --upgrade
           az containerapp job update \
             -g $RG -n $JOB \
-            --image $REGISTRY/$IMAGE_NAME:${{ github.sha }} \
-            --registry-server $REGISTRY
+            --image $REGISTRY/$IMAGE_NAME:${{ github.sha }}
