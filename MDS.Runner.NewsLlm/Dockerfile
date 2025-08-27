@@ -1,5 +1,4 @@
 ﻿FROM mcr.microsoft.com/dotnet/runtime:9.0 AS base
-USER $APP_UID
 WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
@@ -21,4 +20,5 @@ RUN dotnet publish "./MDS.Runner.NewsLlm.csproj" -c $BUILD_CONFIGURATION -o /app
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+ENV DOTNET_EnableDiagnostics=0
 ENTRYPOINT ["dotnet", "MDS.Runner.NewsLlm.dll"]
