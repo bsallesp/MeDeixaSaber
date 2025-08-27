@@ -1,4 +1,6 @@
 ﻿using FluentAssertions;
+using MDS.Runner.NewsLlm.Abstractions;
+using MDS.Runner.NewsLlm.Application;
 using MDS.Runner.NewsLlm.Collectors;
 using MDS.Runner.NewsLlm.Journalists;
 using MDS.Runner.NewsLlm.Journalists.Interfaces;
@@ -31,6 +33,8 @@ namespace MDS.Runner.NewsLlm.Test.Program
 
             count.Should().Be(0);
             collector.VerifyAll();
+            sink.VerifyNoOtherCalls();
+            journalist.VerifyNoOtherCalls();
         }
 
         [Fact]
@@ -55,7 +59,7 @@ namespace MDS.Runner.NewsLlm.Test.Program
                       .ReturnsAsync(rewritten);
 
             var sink = new Mock<IArticleSink>();
-            sink.Setup(s => s.InsertManyAsync(It.Is<IEnumerable<News>>(n => n.Single().Title == "rt1")))
+            sink.Setup(s => s.InsertAsync(It.Is<News>(n => n.Title == "rt1")))
                 .Returns(Task.CompletedTask)
                 .Verifiable();
 
@@ -69,7 +73,10 @@ namespace MDS.Runner.NewsLlm.Test.Program
             var count = await sut.RunAsync();
 
             count.Should().Be(1);
-            sink.Verify(s => s.InsertManyAsync(It.IsAny<IEnumerable<News>>()), Times.Exactly(1));
+            sink.Verify(s => s.InsertAsync(It.IsAny<News>()), Times.Exactly(1));
+            collector.VerifyAll();
+            journalist.VerifyAll();
+            sink.VerifyAll();
         }
     }
 }

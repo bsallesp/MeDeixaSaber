@@ -4,6 +4,7 @@ using MDS.Runner.Scraper.Services;
 using MeDeixaSaber.Core.Models;
 using MeDeixaSaber.Core.Services;
 using MDS.Data.Repositories;
+using MDS.Data.Repositories.Interfaces;
 
 namespace MDS.Runner.Scraper.Test.Orchestration;
 

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using MDS.Data.Repositories;
+using MDS.Data.Repositories.Interfaces;
 using MDS.Runner.Scraper.Services;
 using MeDeixaSaber.Core.Models;
 

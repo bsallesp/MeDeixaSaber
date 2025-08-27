@@ -1,4 +1,5 @@
 ﻿using MDS.Data.Repositories;
+using MDS.Data.Repositories.Interfaces;
 using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.Scraper.Services;
