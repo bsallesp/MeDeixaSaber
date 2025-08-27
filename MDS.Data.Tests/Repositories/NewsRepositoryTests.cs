@@ -4,6 +4,7 @@ using MDS.Data.Repositories;
 using MeDeixaSaber.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 
 namespace MDS.Data.Tests.Repositories;
 
@@ -53,13 +54,16 @@ public class NewsRepositoryTests
         foreach (var c in ctors)
         {
             var ps = c.GetParameters();
-            if (ps.Length == 1 && ps[0].ParameterType.Name == "IDbConnectionFactory")
-                return (NewsRepository)Activator.CreateInstance(type, new object[] { new FakeFactory(factory) })!;
-            if (ps.Length == 2 && ps[0].ParameterType.Name == "IDbConnectionFactory" &&
-                IsLoggerOf(type, ps[1].ParameterType))
+            switch (ps.Length)
             {
-                var logger = GetNullLogger(type);
-                return (NewsRepository)Activator.CreateInstance(type, new object[] { new FakeFactory(factory), logger })!;
+                case 1 when ps[0].ParameterType.Name == "IDbConnectionFactory":
+                    return (NewsRepository)Activator.CreateInstance(type, new object[] { new FakeFactory(factory) })!;
+                case 2 when ps[0].ParameterType.Name == "IDbConnectionFactory" &&
+                            IsLoggerOf(type, ps[1].ParameterType):
+                {
+                    var logger = GetNullLogger(type);
+                    return (NewsRepository)Activator.CreateInstance(type, new object[] { new FakeFactory(factory), logger })!;
+                }
             }
         }
 
@@ -75,8 +79,14 @@ public class NewsRepositoryTests
 
     static object GetNullLogger(Type repoType)
     {
-        var nullLoggerType = typeof(NullLogger<>).MakeGenericType(repoType);
-        var prop = nullLoggerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)!;
-        return prop.GetValue(null)!;
+        var factory = Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        var method = typeof(Microsoft.Extensions.Logging.LoggerFactoryExtensions)
+            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .First(m =>
+                m.Name == "CreateLogger" &&
+                m.IsGenericMethodDefinition &&
+                m.GetParameters().Length == 1);
+        var generic = method.MakeGenericMethod(repoType);
+        return generic.Invoke(null, [factory])!;
     }
 }

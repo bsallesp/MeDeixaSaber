@@ -2,7 +2,6 @@
 using MDS.Runner.NewsLlm.Abstractions;
 using MDS.Runner.NewsLlm.Application;
 using MDS.Runner.NewsLlm.Collectors;
-using MDS.Runner.NewsLlm.Journalists;
 using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MeDeixaSaber.Core.Models;
 using Moq;
@@ -24,8 +23,8 @@ namespace MDS.Runner.NewsLlm.Test.Program
 
             var sut = new AppRunner(
                 collector.Object,
-                Mock.Of<IOpenAiNewsRewriter>(),
-                Mock.Of<INewsMapper>(),
+                Mock.Of<MDS.Runner.NewsLlm.Journalists.IOpenAiNewsRewriter>(),
+                Mock.Of<MDS.Runner.NewsLlm.Journalists.INewsMapper>(),
                 journalist.Object,
                 sink.Object);
 
@@ -55,8 +54,20 @@ namespace MDS.Runner.NewsLlm.Test.Program
                      .ReturnsAsync(payload);
 
             var journalist = new Mock<IJournalist>();
-            journalist.Setup(j => j.WriteAsync(It.IsAny<NewsApiResponse>(), It.IsAny<EditorialBias>(), It.IsAny<CancellationToken>()))
-                      .ReturnsAsync(rewritten);
+            journalist.Setup(j => j.StreamWriteAsync(
+                    It.IsAny<NewsApiResponse>(),
+                    It.IsAny<EditorialBias>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((NewsApiResponse _, EditorialBias _, CancellationToken _) => GetAsync(rewritten));
+
+            static async IAsyncEnumerable<News> GetAsync(IEnumerable<News> items)
+            {
+                foreach (var i in items)
+                {
+                    yield return i;
+                    await Task.Yield();
+                }
+            }
 
             var sink = new Mock<IArticleSink>();
             sink.Setup(s => s.InsertAsync(It.Is<News>(n => n.Title == "rt1")))
@@ -65,8 +76,8 @@ namespace MDS.Runner.NewsLlm.Test.Program
 
             var sut = new AppRunner(
                 collector.Object,
-                Mock.Of<IOpenAiNewsRewriter>(),
-                Mock.Of<INewsMapper>(),
+                Mock.Of<MDS.Runner.NewsLlm.Journalists.IOpenAiNewsRewriter>(),
+                Mock.Of<MDS.Runner.NewsLlm.Journalists.INewsMapper>(),
                 journalist.Object,
                 sink.Object);
 

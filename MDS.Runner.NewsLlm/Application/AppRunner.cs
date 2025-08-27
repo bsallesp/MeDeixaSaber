@@ -28,30 +28,24 @@ public sealed class AppRunner(
         var apiCount = payload.Articles?.Count ?? 0;
         Console.WriteLine($"[APP] artigos_api={apiCount}");
 
-        var rewritten = await _journalist.WriteAsync(payload, EditorialBias.Neutro, ct);
-        var rewCount = rewritten?.Count ?? 0;
-        Console.WriteLine($"[APP] reescritos={rewCount}");
-
         var ok = 0;
         var fail = 0;
 
-        if (rewritten != null)
+        await foreach (var item in _journalist.StreamWriteAsync(payload, EditorialBias.Neutro, ct))
         {
-            foreach (var item in rewritten.Take(30))
+            ct.ThrowIfCancellationRequested();
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                try
-                {
-                    Console.WriteLine($"[APP] persistindo: {item.Title}");
-                    await _sink.InsertAsync(item);
-                    Console.WriteLine($"[APP] persistiu_ok: {item.Url}");
-                    ok++;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[APP] persistiu_erro: {ex.GetType().Name} msg={ex.Message}");
-                    fail++;
-                }
+                Console.WriteLine($"[APP] persistindo: {item.Title}");
+                await _sink.InsertAsync(item);
+                Console.WriteLine($"[APP] persistiu_ok: {item.Url}");
+                ok++;
+                if (ok >= 30) break;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[APP] persistiu_erro: {ex.GetType().Name} msg={ex.Message}");
+                fail++;
             }
         }
 

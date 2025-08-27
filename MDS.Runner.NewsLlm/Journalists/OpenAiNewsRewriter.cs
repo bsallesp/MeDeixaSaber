@@ -17,7 +17,11 @@ namespace MDS.Runner.NewsLlm.Journalists
         : IOpenAiNewsRewriter
     {
         private readonly HttpClient _http = http ?? throw new ArgumentNullException(nameof(http));
-        private readonly string _apiKey = string.IsNullOrWhiteSpace(apiKey) ? throw new ArgumentException("Required", nameof(apiKey)) : apiKey;
+
+        private readonly string _apiKey = string.IsNullOrWhiteSpace(apiKey)
+            ? throw new ArgumentException("Required", nameof(apiKey))
+            : apiKey;
+
         private readonly string _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
 
         private const int MaxContentChars = 1500;
@@ -31,11 +35,12 @@ namespace MDS.Runner.NewsLlm.Journalists
 
             var biasInstr = bias switch
             {
-                EditorialBias.Sensacionalista => "ritmo acelerado, verbos fortes, sem exageros factuais, zero caixa-alta",
-                EditorialBias.Conservador     => "tom sóbrio, ênfase em lei e ordem, custos fiscais e segurança pública",
-                EditorialBias.Progressista    => "tom humanizado, foco em direitos, impacto social e equidade",
-                EditorialBias.Agressivo       => "frases curtas, direto ao ponto, cobre inconsistências e responsabiliza",
-                _                              => "crítico e equilibrado; descreva evidências; evite adjetivos normativos"
+                EditorialBias.Sensacionalista =>
+                    "ritmo acelerado, verbos fortes, sem exageros factuais, zero caixa-alta",
+                EditorialBias.Conservador => "tom sóbrio, ênfase em lei e ordem, custos fiscais e segurança pública",
+                EditorialBias.Progressista => "tom humanizado, foco em direitos, impacto social e equidade",
+                EditorialBias.Agressivo => "frases curtas, direto ao ponto, cobre inconsistências e responsabiliza",
+                _ => "crítico e equilibrado; descreva evidências; evite adjetivos normativos"
             };
 
             var desc = source.Summary ?? string.Empty;
@@ -43,21 +48,34 @@ namespace MDS.Runner.NewsLlm.Journalists
             if (content.Length > MaxContentChars) content = content[..MaxContentChars];
 
             var prompt = $@"Reescreva a notícia abaixo em português (pt-BR), {biasInstr}.
-                Produza 520–700 palavras, sem inventar fatos ou números.
+                Produza um texto jornalístico entre 520 e 700 palavras, sem inventar fatos ou números.
+
+                Orientações:
+                - Mantenha a fidelidade às informações originais.
+                - Construa o texto em forma de notícia fluida, em parágrafos.
+                - O primeiro parágrafo deve ser o lide: direto e claro, resumindo o fato principal.
+                - Nos parágrafos seguintes, desenvolva contexto, implicações, posições das partes envolvidas e próximos passos.
+                - Encerre com um fecho analítico ou de perspectiva.
+                - Evite repetir expressões fixas como “Lide:”, “Contexto:” ou “O que está em jogo:”.
+                - Use estilo jornalístico natural, sem listas ou tópicos.
+
                 Mantenha:
                 - Source: ""{source.Source}""
                 - Url: ""{source.Url}""
                 - PublishedAt: ""{source.PublishedAt:yyyy-MM-ddTHH:mm:ssZ}""
-                Regras:
+
+                Restrições:
                 - Title: 52–70 caracteres.
-                - Summary: 1 frase (≤220).
-                - Content: Lide; ""Contexto""; ""O que está em jogo""; ""O que dizem as partes""; ""Próximos passos""; fecho.
-                Proibições: nada inventado.
-                Dados:
-                Título original: {source.Title}
-                Resumo original: {desc}
+                - Summary: até 220 caracteres, apenas uma frase.
+                - Content: corpo do texto em prosa contínua, 520–700 palavras.
+                - Não inventar informações.
+
+                Dados originais:
+                Título: {source.Title}
+                Resumo: {desc}
                 Trecho do conteúdo:
                 {content}
+
                 Responda APENAS com JSON:
                 {{
                   ""Title"": ""..."",
@@ -81,7 +99,10 @@ namespace MDS.Runner.NewsLlm.Journalists
                     Content = new { type = "string" },
                     Source = new { type = "string", const_ = source.Source },
                     Url = new { type = "string", const_ = source.Url },
-                    PublishedAt = new { type = "string", const_ = source.PublishedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") },
+                    PublishedAt = new
+                    {
+                        type = "string", const_ = source.PublishedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                    },
                     CreatedAt = new { type = "string" }
                 }
             };
@@ -108,9 +129,12 @@ namespace MDS.Runner.NewsLlm.Journalists
             {
                 using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
                 req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
-                req.Content = new StringContent(JsonSerializer.Serialize(body).Replace("\"const_\"", "\"const\""), Encoding.UTF8, "application/json");
+                req.Content = new StringContent(JsonSerializer.Serialize(body).Replace("\"const_\"", "\"const\""),
+                    Encoding.UTF8, "application/json");
 
-                if (verbose) Console.WriteLine($"[JOUR request] model={_model} bias={bias} title={source.Title} attempt={attempt + 1}");
+                if (verbose)
+                    Console.WriteLine(
+                        $"[JOUR request] model={_model} bias={bias} title={source.Title} attempt={attempt + 1}");
 
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 cts.CancelAfter(PerAttemptTimeout);
@@ -145,10 +169,13 @@ namespace MDS.Runner.NewsLlm.Journalists
                         await Task.Delay(delayMs, ct);
                         continue;
                     }
+
                     throw new InvalidOperationException($"OpenAI {(int)resp.StatusCode}: {json}");
                 }
 
                 var payload = ResponseTextExtractor.Extract(json);
+                if (verbose) Console.WriteLine($"[JOUR parse] payload_len={(payload?.Length ?? 0)}");
+
                 if (string.IsNullOrWhiteSpace(payload))
                 {
                     Console.WriteLine("[JOUR parse] empty payload");
@@ -156,8 +183,9 @@ namespace MDS.Runner.NewsLlm.Journalists
                     throw new InvalidOperationException("Empty payload");
                 }
 
-                var rewritten = JsonSerializer.Deserialize<News>(payload, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                               ?? throw new InvalidOperationException("Invalid JSON");
+                var rewritten = JsonSerializer.Deserialize<News>(payload,
+                                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                                ?? throw new InvalidOperationException("Invalid JSON");
 
                 rewritten.Source = source.Source;
                 rewritten.Url = source.Url;

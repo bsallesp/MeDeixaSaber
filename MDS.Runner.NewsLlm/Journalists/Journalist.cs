@@ -9,15 +9,22 @@ namespace MDS.Runner.NewsLlm.Journalists
         private readonly IOpenAiNewsRewriter _rewriter = rewriter ?? throw new ArgumentNullException(nameof(rewriter));
 
         private const int MaxArticlesPerRun = 12;
-        private const int MaxConsecutiveTimeouts = 1;
-        private static readonly TimeSpan PerItemTimeout = TimeSpan.FromSeconds(8);
+        private const int MaxConsecutiveFailures = 3;
 
         public async Task<IReadOnlyCollection<News>> WriteAsync(NewsApiResponse payload, EditorialBias bias, CancellationToken ct = default)
         {
+            var list = new List<News>();
+            await foreach (var n in StreamWriteAsync(payload, bias, ct)) list.Add(n);
+            return list;
+        }
+
+        public async IAsyncEnumerable<News> StreamWriteAsync(NewsApiResponse payload, EditorialBias bias, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
             ArgumentNullException.ThrowIfNull(payload);
+            if (IsRewriteDisabledByEnv()) yield break;
 
             var articles = payload.Articles ?? [];
-            if (articles.Count == 0) return [];
+            if (articles.Count == 0) yield break;
 
             var sources = articles
                 .OrderByDescending(a => a.PublishedAt)
@@ -26,73 +33,47 @@ namespace MDS.Runner.NewsLlm.Journalists
                 .OfType<News>()
                 .ToList();
 
-            var results = new List<News>(capacity: sources.Count);
-            var consecutiveTimeouts = 0;
-            var rewriteEnabled = !IsRewriteDisabledByEnv();
+            var consecutiveFailures = 0;
 
             foreach (var src in sources)
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (!rewriteEnabled)
-                {
-                    results.Add(BuildFallback(src));
-                    continue;
-                }
+                News? rewritten = null;
+                bool shouldYield = false;
 
-                Console.WriteLine($"[JOUR try] {src.Title}");
                 try
                 {
-                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    cts.CancelAfter(PerItemTimeout);
-                    var rewritten = await _rewriter.RewriteAsync(src, bias, cts.Token);
-                    results.Add(rewritten);
-                    consecutiveTimeouts = 0;
+                    rewritten = await _rewriter.RewriteAsync(src, bias, ct);
+                    consecutiveFailures = 0;
                     Console.WriteLine($"[JOUR ok] {src.Title}");
+                    shouldYield = true;
                 }
                 catch (TaskCanceledException)
                 {
-                    consecutiveTimeouts++;
-                    Console.WriteLine($"[JOUR fail-timeout] {src.Title}");
-                    results.Add(BuildFallback(src));
-
-                    if (consecutiveTimeouts >= MaxConsecutiveTimeouts)
-                    {
-                        Console.WriteLine("[JOUR circuit-open] desativando rewrite para o restante desta execução");
-                        rewriteEnabled = false;
-                    }
+                    consecutiveFailures++;
+                    Console.WriteLine($"[JOUR timeout] {src.Title}");
+                    if (consecutiveFailures >= MaxConsecutiveFailures) yield break;
                 }
                 catch (Exception ex)
                 {
+                    consecutiveFailures++;
                     Console.WriteLine($"[JOUR fail] {src.Title} err='{ex.Message}'");
-                    results.Add(BuildFallback(src));
+                    if (consecutiveFailures >= MaxConsecutiveFailures) yield break;
                 }
+
+                if (shouldYield && rewritten is not null)
+                    yield return rewritten;
             }
 
-            Console.WriteLine($"[JOUR done] produzidos={results.Count}");
-            return results;
+            Console.WriteLine("[JOUR done-stream]");
         }
+
 
         private static bool IsRewriteDisabledByEnv()
         {
             var v = Environment.GetEnvironmentVariable("MDS_DISABLE_REWRITE");
             return !string.IsNullOrWhiteSpace(v) && (v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static News BuildFallback(News src)
-        {
-            return new News
-            {
-                Title = src.Title,
-                Summary = string.IsNullOrWhiteSpace(src.Summary)
-                    ? (string.IsNullOrWhiteSpace(src.Content) ? null : (src.Content.Length > 220 ? src.Content[..220] : src.Content))
-                    : src.Summary,
-                Content = string.IsNullOrWhiteSpace(src.Content) ? "(sem conteúdo)" : src.Content,
-                Source = string.IsNullOrWhiteSpace(src.Source) ? "(unknown)" : src.Source,
-                Url = src.Url,
-                PublishedAt = src.PublishedAt == default ? DateTime.UtcNow : src.PublishedAt,
-                CreatedAt = DateTime.UtcNow
-            };
         }
     }
 }

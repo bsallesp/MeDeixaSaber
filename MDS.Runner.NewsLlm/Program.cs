@@ -25,7 +25,8 @@ internal static class Program
             new HttpClient { Timeout = TimeSpan.FromSeconds(60) });
 
         var openAiKey = await secretReader.GetAsync("openai-key");
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        using var http = new HttpClient();
+        http.Timeout = TimeSpan.FromSeconds(300);
 
         var disableRewrite = IsRewriteDisabled();
         IOpenAiNewsRewriter rewriter = disableRewrite
