@@ -3,8 +3,10 @@ using Azure.Security.KeyVault.Secrets;
 using MDS.Data.Context;
 using MDS.Data.Repositories;
 using MDS.Runner.NewsLlm.Abstractions;
+using MDS.Runner.NewsLlm.Application;
 using MDS.Runner.NewsLlm.Collectors;
 using MDS.Runner.NewsLlm.Journalists;
+using MDS.Runner.NewsLlm.Persisters;
 using Microsoft.Extensions.Logging;
 
 namespace MDS.Runner.NewsLlm;
@@ -21,7 +23,7 @@ internal static class Program
 
         var collector = new NewsOrgCollector(
             secretReader,
-            Persisters.BlobSaver.Create("mdsprodstg04512", "news-org"),
+            BlobSaver.Create("mdsprodstg04512", "news-org"),
             new HttpClient { Timeout = TimeSpan.FromSeconds(60) });
 
         var openAiKey = await secretReader.GetAsync("openai-key");
@@ -47,7 +49,11 @@ internal static class Program
             "mds-sql-db-prod");
         var repo = new NewsRepository(factory, repoLogger);
 
-        IArticleSink sink = new Application.ArticleSink(repo);
+        var dbSink = new DbArticleSink(repo);
+        var blobSaver = BlobSaver.Create("mdsprodstg04512", "news-llm");
+        var blobSink = new BlobArticleSink(blobSaver, "news-llm");
+        IArticleSink sink = new CompositeArticleSink([dbSink, blobSink]);
+
         IAppRunner app = new Application.AppRunner(collector, rewriter, mapper, journalist, sink);
 
         var count = await app.RunAsync();
