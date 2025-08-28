@@ -21,13 +21,13 @@ public sealed class ScrapedCsvReaderTests
 
         result.Should().HaveCount(2);
         result[0].Title.Should().Be("Apto Centro");
-        
+
         var expectedUtc = DateTime.Parse(
             "2025-08-21T15:30:00Z",
             null,
             System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal);
         result[0].CapturedAtUtc.Should().Be(expectedUtc);
-        
+
         result[1].Title.Should().Be("Casa Deerfield");
         result[1].PostDate.Should().Be(DateTime.Parse("2025-08-20"));
     }
@@ -42,7 +42,7 @@ public sealed class ScrapedCsvReaderTests
 
         result.Should().BeEmpty();
     }
-    
+
     [Fact]
     public void Load_Parses_Invalid_Dates_As_Null()
     {
@@ -73,5 +73,4 @@ public sealed class ScrapedCsvReaderTests
         r[0].Title.Should().Be("Item 1");
         r[0].Url.Should().Be("https://x/1");
     }
-
 }

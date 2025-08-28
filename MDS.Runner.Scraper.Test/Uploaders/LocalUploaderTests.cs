@@ -44,7 +44,6 @@ public sealed class LocalUploaderTests
         var src1 = NewTempFile("v1");
         var src2 = NewTempFile("v2");
 
-        // Força o mesmo nome de arquivo no destino
         var fixedSrc1 = Path.Combine(Path.GetDirectoryName(src1)!, fileName);
         var fixedSrc2 = Path.Combine(Path.GetDirectoryName(src2)!, fileName);
         File.Copy(src1, fixedSrc1, overwrite: true);
@@ -53,7 +52,7 @@ public sealed class LocalUploaderTests
         var uploader = new LocalUploader(baseDir);
 
         await uploader.SaveAsync("opajuda", fixedSrc1);
-        await uploader.SaveAsync("opajuda", fixedSrc2); // deve sobrescrever
+        await uploader.SaveAsync("opajuda", fixedSrc2);
 
         var destPath = Path.Combine(baseDir, "opajuda", fileName);
         File.ReadAllText(destPath).Should().Be("v2");

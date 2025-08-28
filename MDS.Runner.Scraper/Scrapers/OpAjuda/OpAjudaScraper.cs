@@ -1,7 +1,9 @@
 ﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
+using MDS.Runner.Scraper.Scrapers;
 using MDS.Runner.Scraper.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace MDS.Runner.Scraper.Scrapers.OpAjuda;
 
@@ -56,14 +58,14 @@ public static class OpAjudaScraper
         }
         return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
-    
+
     private static string RefIdFromUrl(string u)
     {
         var m = Regex.Match(u ?? "", @"/classified-show/(\d+)", RegexOptions.IgnoreCase);
         return m.Success ? m.Groups[1].Value : "";
     }
 
-    public static async Task<object> RunAsync(HttpClient http, string today)
+    public static async Task<ScrapeResult> RunAsync(HttpClient http, string today, ILogger logger)
     {
         var categories = new[]
         {
@@ -187,6 +189,6 @@ public static class OpAjudaScraper
             }
         }
 
-        return new { site = "opajuda", date = today, pages, totalItems, itemsFile, logFile };
+        return new ScrapeResult("opajuda", today, pages, totalItems, itemsFile, logFile);
     }
 }

@@ -1,25 +1,13 @@
 ﻿using System.Globalization;
 using MeDeixaSaber.Core.Models;
 using MeDeixaSaber.Core.Services;
-using MDS.Data.Repositories;
 using MDS.Data.Repositories.Interfaces;
+using MDS.Runner.Scraper.Interfaces;
+using MDS.Runner.Scraper.Services.Interfaces;
+using MDS.Runner.Scraper.Scrapers;
+using Microsoft.Extensions.Logging;
 
 namespace MDS.Runner.Scraper.Services;
-
-public interface IScraper
-{
-    Task<string> RunAsync(HttpClient http, string dateStr);
-}
-
-public interface IScrapedCsvReader
-{
-    IEnumerable<Classified> Load(string path);
-}
-
-public sealed class DefaultScrapedCsvReader : IScrapedCsvReader
-{
-    public IEnumerable<Classified> Load(string path) => ScrapedCsvReader.Load(path);
-}
 
 public sealed class ScrapeOrchestrator(
     IScraper scraper1,
@@ -28,31 +16,38 @@ public sealed class ScrapeOrchestrator(
     ITitleNormalizationService norm,
     IClassifiedsFilter filter,
     IScrapedCsvReader reader,
-    IStorageUploader? uploader)
+    IStorageUploader? uploader,
+    ILoggerFactory loggerFactory)
 {
+    private readonly ILogger<ScrapeOrchestrator> _logger = loggerFactory.CreateLogger<ScrapeOrchestrator>();
+
     public async Task<int> RunForDateAsync(HttpClient http, DateTime dateUtc, bool doUpload)
     {
         if (http is null) throw new ArgumentNullException(nameof(http));
-        if (scraper1 is null) throw new ArgumentNullException(nameof(scraper1));
-        if (scraper2 is null) throw new ArgumentNullException(nameof(scraper2));
-        if (repo is null) throw new ArgumentNullException(nameof(repo));
-        if (filter is null) throw new ArgumentNullException(nameof(filter));
-        if (reader is null) throw new ArgumentNullException(nameof(reader));
+        _ = scraper1 ?? throw new ArgumentNullException(nameof(scraper1));
+        _ = scraper2 ?? throw new ArgumentNullException(nameof(scraper2));
+        _ = repo ?? throw new ArgumentNullException(nameof(repo));
+        _ = filter ?? throw new ArgumentNullException(nameof(filter));
+        _ = reader ?? throw new ArgumentNullException(nameof(reader));
         _ = norm ?? throw new ArgumentNullException(nameof(norm));
 
         var dateStr = dateUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _logger.LogInformation("Iniciando execução do ScrapeOrchestrator para a data: {Date}", dateStr);
 
-        var f1 = await scraper1.RunAsync(http, dateStr);
-        var f2 = await scraper2.RunAsync(http, dateStr);
+        var r1 = await scraper1.RunAsync(http, dateStr, loggerFactory.CreateLogger(scraper1.GetType().Name));
+        var r2 = await scraper2.RunAsync(http, dateStr, loggerFactory.CreateLogger(scraper2.GetType().Name));
 
         if (doUpload && uploader is not null)
         {
-            await uploader.SaveAsync("acheiusa", f1);
-            await uploader.SaveAsync("opajuda", f2);
+            _logger.LogInformation("Iniciando upload para o storage...");
+            var uploaderLogger = loggerFactory.CreateLogger(uploader.GetType().Name);
+            await uploader.SaveAsync(r1.Site, r1.ItemsFile, uploaderLogger);
+            await uploader.SaveAsync(r2.Site, r2.ItemsFile, uploaderLogger);
+            _logger.LogInformation("Upload concluído.");
         }
 
-        var list1 = reader.Load(f1) ?? Enumerable.Empty<Classified>();
-        var list2 = reader.Load(f2) ?? Enumerable.Empty<Classified>();
+        var list1 = reader.Load(r1.ItemsFile) ?? Enumerable.Empty<Classified>();
+        var list2 = reader.Load(r2.ItemsFile) ?? Enumerable.Empty<Classified>();
         var merged = list1.Concat(list2);
 
         var existing = await repo.GetByDayAsync(dateUtc);

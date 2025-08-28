@@ -1,18 +1,11 @@
 ﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
+using MDS.Runner.Scraper.Scrapers;
 using MDS.Runner.Scraper.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace MDS.Runner.Scraper.Scrapers.AcheiUsa;
-
-public sealed record ScraperResult(
-    string Site,
-    string Date,
-    int Pages,
-    int TotalItems,
-    string ItemsFile,
-    string LogFile
-);
 
 public static class AcheiUsaScraper
 {
@@ -148,7 +141,7 @@ public static class AcheiUsaScraper
         return results;
     }
 
-    public static async Task<ScraperResult> RunAsync(HttpClient http, string today)
+    public static async Task<ScrapeResult> RunAsync(HttpClient http, string today, ILogger logger)
     {
         var outDir = ScraperIO.GetOutputDir();
         var stamp = $"{DateTime.UtcNow:yyyy-MM-dd-HH-mm-ss-fffffff}-{Guid.NewGuid():N}";
@@ -199,6 +192,6 @@ public static class AcheiUsaScraper
 
         await ScraperIO.AppendToFile(logFile, $"{ScraperIO.NowIso()}\tRUN_SUMMARY\tpages={pages}\ttotalItems={totalItems}", logLock);
 
-        return new ScraperResult("acheiusa", today, pages, totalItems, itemsCsv, logFile);
+        return new ScrapeResult("acheiusa", today, pages, totalItems, itemsCsv, logFile);
     }
 }

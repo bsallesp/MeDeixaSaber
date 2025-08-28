@@ -2,20 +2,10 @@
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
-using MDS.Data.Repositories;
-using MDS.Data.Repositories.Interfaces;
 using MDS.Runner.Scraper.Services;
 using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.Scraper.Test.Dedup;
-
-file sealed class FakeRepo(System.Collections.Generic.IEnumerable<Classified> existing) : IClassifiedsRepository
-{
-    public readonly System.Collections.Generic.List<Classified> Inserts = new();
-    public Task<System.Collections.Generic.IEnumerable<Classified>> GetByDayAsync(DateTime dayUtc) => Task.FromResult(existing);
-    public Task<System.Collections.Generic.IEnumerable<Classified>> GetLatestAsync(int take = 50) => Task.FromResult<System.Collections.Generic.IEnumerable<Classified>>(Array.Empty<Classified>());
-    public Task InsertAsync(Classified entity) { Inserts.Add(entity); return Task.CompletedTask; }
-}
 
 public sealed class DedupAndPersistTests
 {
@@ -52,7 +42,7 @@ public sealed class DedupAndPersistTests
             C("Apto 2Q Boca", "perto da praia", "2025-08-21T00:00:00Z")
         };
 
-        var repo = new FakeRepo(existing);
+        var repo = new FakeRepoDedup(existing);
         var svc = new DedupAndPersist(repo);
 
         var inserted = await svc.UpsertNewAsync(scraped, new DateTime(2025, 8, 20));

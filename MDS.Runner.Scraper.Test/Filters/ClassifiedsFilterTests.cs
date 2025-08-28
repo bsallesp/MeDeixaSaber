@@ -1,21 +1,8 @@
-﻿using System.Text.RegularExpressions;
-using FluentAssertions;
+﻿using FluentAssertions;
 using MDS.Runner.Scraper.Services;
 using MeDeixaSaber.Core.Models;
-using MeDeixaSaber.Core.Services;
 
 namespace MDS.Runner.Scraper.Test.Filters;
-
-file sealed class FakeNorm : ITitleNormalizationService
-{
-    public string Normalize(string? title)
-    {
-        if (string.IsNullOrWhiteSpace(title)) return string.Empty;
-        var s = title.Trim().ToLowerInvariant();
-        s = Regex.Replace(s, "\\s+", " ");
-        return s;
-    }
-}
 
 public sealed class ClassifiedsFilterTests
 {
@@ -46,10 +33,11 @@ public sealed class ClassifiedsFilterTests
         };
 
         var r = filter.Filter(scraped, existing);
-        r.Select(x => (x.Title, x.PostDate)).Should().BeEquivalentTo([
+        r.Select(x => (x.Title, x.PostDate)).Should().BeEquivalentTo(new (string, DateTime)[]
+        {
             ("Casa 3Q Deerfield", DateTime.Parse("2025-08-20").Date),
             ("Apto 2Q Boca", DateTime.Parse("2025-08-21").Date)
-        ]);
+        });
     }
 
     [Fact]
@@ -70,7 +58,7 @@ public sealed class ClassifiedsFilterTests
         r.Should().HaveCount(1);
         r[0].Title.Should().Be("APTO LUXO");
     }
-    
+
     [Fact]
     public void Filter_Allows_Same_Title_On_Different_Dates()
     {
@@ -93,5 +81,4 @@ public sealed class ClassifiedsFilterTests
             DateTime.Parse("2025-08-21").Date
         });
     }
-
 }
