@@ -1,0 +1,46 @@
+﻿name: cd-acr-scraper-build
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'MDS.Runner.Scraper/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+env:
+  ACR_NAME: mdsprodacr
+  REGISTRY: mdsprodacr.azurecr.io
+  IMAGE_NAME: mds-runner-scraper
+  RG: mds-prod
+  JOB: mds-runner   # <- nome do seu Container App Job
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Cloud Build (no runner docker needed)
+        run: |
+          az acr build \
+            -r $ACR_NAME \
+            --platform linux/amd64 \
+            -f MDS.Runner.Scraper/Dockerfile \
+            -t $IMAGE_NAME:${{ github.sha }} \
+            -t $IMAGE_NAME:latest \
+            .
+
+      - name: Update Container Apps Job
+        run: |
+          az extension add --name containerapp --upgrade
+          az containerapp job update \
+            -g $RG -n $JOB \
+            --image $REGISTRY/$IMAGE_NAME:${{ github.sha }}
