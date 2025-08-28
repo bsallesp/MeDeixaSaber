@@ -112,15 +112,38 @@ public static partial class CraigsScraper
             http.DefaultRequestHeaders.Connection.ParseAdd("keep-alive");
         }
 
-        http.DefaultRequestVersion = new Version(1, 1);
+        // === throttle global (lido de env) ===
+        var pauseMs = 1500;
+        var pauseRaw = Environment.GetEnvironmentVariable("SCRAPER_PAUSE_MS");
+        if (!string.IsNullOrWhiteSpace(pauseRaw) && int.TryParse(pauseRaw, out var parsed) && parsed >= 0)
+            pauseMs = parsed;
+        var jitter = Math.Min(pauseMs / 3, 250); // +/- até 250ms
+        var rnd = new Random();
+        logger.LogInformation("Craigslist: pause entre requests = {PauseMs}ms (jitter ±{Jitter}ms).", pauseMs, jitter);
 
-        static int ResolvePauseMs()
+        // Helper: faz GET e aplica a pausa
+        static void SetOrReplaceHeader(System.Net.Http.Headers.HttpRequestHeaders h, string name, string? value)
         {
-            var s = Environment.GetEnvironmentVariable("SCRAPER_PAUSE_MS");
-            return int.TryParse(s, out var ms) && ms >= 0 ? ms : 1500;
+            if (h.Contains(name)) h.Remove(name);
+            if (!string.IsNullOrWhiteSpace(value)) h.TryAddWithoutValidation(name, value);
         }
 
-        var pauseMs = ResolvePauseMs();
+        async Task<string> FetchPageAsync(HttpClient h, string url, string? referer, ILogger log)
+        {
+            try
+            {
+                SetOrReplaceHeader(h.DefaultRequestHeaders, "Referer", referer);
+                var html = await h.GetStringAsync(url);
+                var sleep = pauseMs + (jitter > 0 ? rnd.Next(-jitter, jitter + 1) : 0);
+                if (sleep > 0) await Task.Delay(sleep);
+                return html;
+            }
+            catch
+            {
+                // rethrow preservando stack — quem chama loga a exceção
+                throw;
+            }
+        }
 
         static IEnumerable<string> ResolveDomainsFromEnv()
         {
@@ -150,7 +173,7 @@ public static partial class CraigsScraper
                     domains.Add(domain);
                 else
                 {
-                    var fallback = Regex.Replace(city, @"\s+", "");
+                    var fallback = System.Text.RegularExpressions.Regex.Replace(city, @"\s+", "");
                     if (!string.IsNullOrWhiteSpace(fallback))
                         domains.Add(fallback);
                 }
@@ -162,32 +185,14 @@ public static partial class CraigsScraper
         static Func<int, string> BaseUrlBuilder(string domain)
             => (offset) => $"https://{domain}.craigslist.org/search/jjj?sort=date&s={offset}";
 
-        static async Task<string> FetchPageAsync(HttpClient http, string url, string? referer, ILogger log)
-        {
-            using var req = new HttpRequestMessage(HttpMethod.Get, url) { Version = new Version(1, 1) };
-            req.Headers.TryAddWithoutValidation("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36");
-            req.Headers.TryAddWithoutValidation("Accept",
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-            req.Headers.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
-            req.Headers.TryAddWithoutValidation("Connection", "keep-alive");
-            if (!string.IsNullOrWhiteSpace(referer))
-                req.Headers.Referrer = new Uri(referer);
-
-            using var resp = await http.SendAsync(req);
-            resp.EnsureSuccessStatusCode();
-            return await resp.Content.ReadAsStringAsync();
-        }
-
-        var outDir = ScraperIO.GetOutputDir();
+        var outDir = MDS.Runner.Scraper.Utils.ScraperIO.GetOutputDir();
         var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss");
         var itemsFile = Path.Combine(outDir, $"craigslist-items-{stamp}.csv");
 
         var dataLock = new SemaphoreSlim(1, 1);
-
-        await ScraperIO.AppendToFile(itemsFile,
-            ScraperIO.Csv("captured_at_utc", "url", "title", "ref_id", "location", "when", "post_date", "phone",
-                "state", "description"),
+        await MDS.Runner.Scraper.Utils.ScraperIO.AppendToFile(itemsFile,
+            MDS.Runner.Scraper.Utils.ScraperIO.Csv("captured_at_utc", "url", "title", "ref_id", "location", "when",
+                "post_date", "phone", "state", "description"),
             dataLock);
 
         logger.LogInformation("Iniciando run do Craigslist para a data {Today}. Arquivo de saída: {ItemsFile}", today,
@@ -199,11 +204,6 @@ public static partial class CraigsScraper
         var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var targetDomains = ResolveDomainsFromEnv().ToList();
-        if (targetDomains.Count == 1 && targetDomains.First() == "miami" &&
-            !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CRAIGS_TARGET_CITIES")))
-            logger.LogWarning(
-                "A variável de ambiente CRAIGS_TARGET_CITIES foi definida, mas nenhuma cidade mapeada foi encontrada. Usando 'miami' como padrão.");
-
         logger.LogInformation("Domínios alvo: {Domains}", string.Join(",", targetDomains));
 
         foreach (var domain in targetDomains)
@@ -218,9 +218,8 @@ public static partial class CraigsScraper
                 try
                 {
                     logger.LogInformation("Buscando página com headers de browser: {Url}", url);
-                    html = await FetchPageAsync(http, url, referer: $"https://{domain}.craigslist.org/", logger);
+                    html = await FetchPageAsync(http, url, referer: null, logger);
                     logger.LogDebug("Página buscada com sucesso: {Url}", url);
-                    await Task.Delay(pauseMs);
                 }
                 catch (Exception ex)
                 {
@@ -235,6 +234,7 @@ public static partial class CraigsScraper
                     break;
                 }
 
+                // paralelismo moderado
                 var sem = new SemaphoreSlim(6);
                 var pageNew = 0;
                 var stopEarly = false;
@@ -257,10 +257,7 @@ public static partial class CraigsScraper
                         string itemHtml;
                         try
                         {
-                            logger.LogDebug("Buscando item: {Url}", link.url);
                             itemHtml = await FetchPageAsync(http, link.url, referer: url, logger);
-                            logger.LogTrace("Item buscado com sucesso: {Url}", link.url);
-                            await Task.Delay(pauseMs);
                         }
                         catch (Exception ex)
                         {
@@ -273,7 +270,7 @@ public static partial class CraigsScraper
                         string? postDate = null;
                         try
                         {
-                            var d = new HtmlDocument();
+                            var d = new HtmlAgilityPack.HtmlDocument();
                             d.LoadHtml(itemHtml);
                             var timeNode =
                                 d.DocumentNode.SelectSingleNode(
@@ -288,8 +285,8 @@ public static partial class CraigsScraper
                         var finalPostDate = postDate ?? listIso;
                         if (finalPostDate != today) return;
 
-                        var line = ScraperIO.Csv(
-                            ScraperIO.NowIso(),
+                        var line = MDS.Runner.Scraper.Utils.ScraperIO.Csv(
+                            MDS.Runner.Scraper.Utils.ScraperIO.NowIso(),
                             link.url,
                             title,
                             link.refId,
@@ -301,7 +298,7 @@ public static partial class CraigsScraper
                             description
                         );
 
-                        await ScraperIO.AppendToFile(itemsFile, line, dataLock);
+                        await MDS.Runner.Scraper.Utils.ScraperIO.AppendToFile(itemsFile, line, dataLock);
                         Interlocked.Increment(ref totalItems);
                         Interlocked.Increment(ref pageNew);
                         logger.LogInformation("Item salvo: {Url} (RefId: {RefId})", link.url,
@@ -319,6 +316,9 @@ public static partial class CraigsScraper
                 logger.LogInformation("Resumo da página (domínio {Domain}, offset {Offset}): {NewItems} itens novos.",
                     domain, offset, pageNew);
 
+                // pequena pausa entre páginas também
+                if (pauseMs > 0) await Task.Delay(pauseMs);
+
                 if (pageNew == 0 || stopEarly) break;
             }
 
@@ -331,6 +331,7 @@ public static partial class CraigsScraper
 
         return new ScrapeResult("craigslist", today, pages, totalItems, itemsFile, null);
     }
+
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex MyRegex();
