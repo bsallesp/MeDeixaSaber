@@ -1,14 +1,14 @@
 ﻿# ---------------------------
 # Base (runtime)
 # ---------------------------
-FROM mcr.microsoft.com/dotnet/runtime:9.0-bookworm-slim AS base
+FROM mcr.microsoft.com/dotnet/runtime:9.0-noble AS base
 USER 1654
 WORKDIR /app
 
 # ---------------------------
 # Build (SDK)
 # ---------------------------
-FROM mcr.microsoft.com/dotnet/sdk:9.0-bookworm AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0-noble AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
