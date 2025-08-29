@@ -44,7 +44,8 @@ if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(database))
 
 var repoLogger = loggerFactory.CreateLogger<ClassifiedsRepository>();
 var factory = new SqlConnectionFactory(server, database);
-var repo = new ClassifiedsRepository(factory, normalizationService, repoLogger);
+var repo = new ClassifiedsRepository(factory, repoLogger);
+
 
 IStorageUploader? uploader =
     noUpload ? null : (HasFlag(args, "--local") ? new LocalUploader() : new BlobUploader("mdsprodstg04512", "scraped"));

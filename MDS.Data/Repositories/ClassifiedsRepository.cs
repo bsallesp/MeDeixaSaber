@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Dapper;
+﻿using Dapper;
 using MDS.Data.Context;
 using MDS.Data.Repositories.Interfaces;
 using MeDeixaSaber.Core.Models;
-using MeDeixaSaber.Core.Services;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,19 +11,16 @@ namespace MDS.Data.Repositories;
 public sealed class ClassifiedsRepository : IClassifiedsRepository
 {
     private readonly IDbConnectionFactory _factory;
-    private readonly ITitleNormalizationService _normalizationService;
     private readonly ILogger<ClassifiedsRepository> _logger;
 
-    public ClassifiedsRepository(IDbConnectionFactory factory, ITitleNormalizationService normalizationService)
-        : this(factory, normalizationService, NullLogger<ClassifiedsRepository>.Instance) { }
+    public ClassifiedsRepository(IDbConnectionFactory factory)
+        : this(factory, NullLogger<ClassifiedsRepository>.Instance) { }
 
     public ClassifiedsRepository(
         IDbConnectionFactory factory,
-        ITitleNormalizationService normalizationService,
         ILogger<ClassifiedsRepository> logger)
     {
         _factory = factory ?? throw new ArgumentNullException(nameof(factory));
-        _normalizationService = normalizationService ?? throw new ArgumentNullException(nameof(normalizationService));
         _logger = logger ?? NullLogger<ClassifiedsRepository>.Instance;
     }
 
@@ -39,9 +31,6 @@ public sealed class ClassifiedsRepository : IClassifiedsRepository
         var rows = await conn.QueryAsync<Classified>(
             "SELECT * FROM dbo.Classifieds WHERE CAST(CapturedAtUtc AS date) = @d",
             new { d = dayUtc.Date });
-
-        foreach (var c in rows)
-            c.Title = _normalizationService.Normalize(c.Title);
 
         _logger.LogDebug("Fetched {Count} classifieds for {Day}", rows.Count(), dayUtc.Date);
         return rows;
@@ -71,8 +60,6 @@ public sealed class ClassifiedsRepository : IClassifiedsRepository
             (CapturedAtUtc, Url, Title, RefId, Location, ListingWhen, PostDate, Phone, State, Description, IsDuplicate)
             VALUES
             (@CapturedAtUtc, @Url, @Title, @RefId, @Location, @ListingWhen, @PostDate, @Phone, @State, @Description, @IsDuplicate);";
-
-        entity.Title = _normalizationService.Normalize(entity.Title);
 
         await using var conn = await _factory.GetOpenConnectionAsync();
         try
