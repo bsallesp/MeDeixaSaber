@@ -1,0 +1,74 @@
+diff --git a/MDS.Api.Tests/Controllers/Auth_ExpiredAndIssuerAudience_Tests.cs b/MDS.Api.Tests/Controllers/Auth_ExpiredAndIssuerAudience_Tests.cs
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/MDS.Api.Tests/Controllers/Auth_ExpiredAndIssuerAudience_Tests.cs
+@@ -0,0 +1,89 @@
++using System.IdentityModel.Tokens.Jwt;
++using System.Net;
++using System.Net.Http.Headers;
++using System.Security.Claims;
++using System.Text;
++using Microsoft.IdentityModel.Tokens;
++using Xunit;
++
++namespace MDS.Api.Tests.Controllers;
++
++public class Auth_ExpiredAndIssuerAudience_Tests(WebAppFactory f) : IClassFixture<WebAppFactory>
++{
++    readonly HttpClient _client = f.CreateClient();
++
++    [Fact]
++    public async Task Me_WithExpiredToken_Should401()
++    {
++        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(new string('k', 32)));
++        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
++        var token = new JwtSecurityToken(
++            issuer: "iss",
++            audience: "aud",
++            claims: new[] { new Claim(JwtRegisteredClaimNames.Sub, "alice") },
++            notBefore: DateTime.UtcNow.AddMinutes(-10),
++            expires: DateTime.UtcNow.AddMinutes(-5),
++            signingCredentials: creds);
++        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
++        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
++        var resp = await _client.GetAsync("/api/auth/me");
++        Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
++    }
++
++    [Fact]
++    public async Task Me_WithWrongIssuer_Should401()
++    {
++        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(new string('k', 32)));
++        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
++        var token = new JwtSecurityToken(
++            issuer: "wrong-iss",
++            audience: "aud",
++            claims: new[] { new Claim(JwtRegisteredClaimNames.Sub, "bob") },
++            notBefore: DateTime.UtcNow.AddMinutes(-1),
++            expires: DateTime.UtcNow.AddMinutes(5),
++            signingCredentials: creds);
++        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
++        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
++        var resp = await _client.GetAsync("/api/auth/me");
++        Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
++    }
++
++    [Fact]
++    public async Task Me_WithWrongAudience_Should401()
++    {
++        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(new string('k', 32)));
++        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
++        var token = new JwtSecurityToken(
++            issuer: "iss",
++            audience: "wrong-aud",
++            claims: new[] { new Claim(JwtRegisteredClaimNames.Sub, "eve") },
++            notBefore: DateTime.UtcNow.AddMinutes(-1),
++            expires: DateTime.UtcNow.AddMinutes(5),
++            signingCredentials: creds);
++        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
++        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
++        var resp = await _client.GetAsync("/api/auth/me");
++        Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
++    }
++}
