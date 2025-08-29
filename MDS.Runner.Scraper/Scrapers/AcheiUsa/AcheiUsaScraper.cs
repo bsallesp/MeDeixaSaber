@@ -122,7 +122,13 @@ public static class AcheiUsaScraper
         var description = Clean(main.InnerText);
         var postDate = ParsePostDateFromText(doc.DocumentNode.InnerText);
         var phone = ExtractPhones(main).FirstOrDefault();
-        return (title, description, refId, phone, null, null, postDate);
+
+        string? location = null;
+        var rawLoc = doc.DocumentNode.SelectSingleNode("//*[contains(@class,'location')]")?.InnerText;
+        if (!string.IsNullOrWhiteSpace(rawLoc))
+            location = Regex.Replace(rawLoc.Trim(), @",\s*United States$", "", RegexOptions.IgnoreCase);
+
+        return (title, description, refId, phone, location, null, postDate);
     }
 
     static List<(string url, string? location, string? when)> ExtractLinks(string html, Uri baseUri)
