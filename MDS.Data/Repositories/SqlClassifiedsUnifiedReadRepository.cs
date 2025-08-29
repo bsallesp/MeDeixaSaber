@@ -3,7 +3,6 @@ using Dapper;
 using MDS.Application.Abstractions.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
-
 using CoreDto = MDS.Application.Abstractions.Data.ClassifiedUnifiedDto;
 
 namespace MDS.Data.Repositories;
@@ -40,17 +39,12 @@ public sealed class SqlClassifiedsUnifiedReadRepository(IConfiguration cfg) : IC
                 new { take, skip },
                 cancellationToken: ct));
 
-        return rows
-            .Select(r => new CoreDto(
-                r.Title,
-                r.PostDate,
-                r.Description,
-                ParseTags(r.Tags),
-                r.Url))
-            .ToList();
+        return rows.Select(r => new CoreDto(Title: r.Title, PostDate: r.PostDate, Description: r.Description,
+            Tags: ParseTags(r.Tags), Url: r.Url)).ToList();
     }
 
-    public async Task<IReadOnlyList<CoreDto>> GetByDayAsync(DateTime dayUtc, int take, int skip, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CoreDto>> GetByDayAsync(DateTime dayUtc, int take, int skip,
+        CancellationToken ct = default)
     {
         await using var cn = new SqlConnection(cfg.GetConnectionString("Default"));
         var rows = await cn.QueryAsync<Row>(
@@ -67,11 +61,12 @@ public sealed class SqlClassifiedsUnifiedReadRepository(IConfiguration cfg) : IC
 
         return rows
             .Select(r => new CoreDto(
-                r.Title,
-                r.PostDate,
-                r.Description,
-                ParseTags(r.Tags),
-                r.Url))
+                Title: r.Title,
+                PostDate: r.PostDate,
+                Description: r.Description,
+                Tags: ParseTags(r.Tags),
+                Url: r.Url
+            ))
             .ToList();
     }
 }

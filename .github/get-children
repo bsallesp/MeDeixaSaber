@@ -1,0 +1,11 @@
+Get-ChildItem -Recurse -Include *.cs -File |
+    Where-Object {
+        $_.FullName -notmatch '\\bin\\' -and
+        $_.FullName -notmatch '\\obj\\' -and
+        $_.FullName -notmatch '\\packages\\' -and
+        $_.FullName -notmatch '\\.vs\\'
+    } |
+    ForEach-Object {
+        "`n===== $($_.FullName) =====`n"
+        Get-Content $_.FullName -Raw
+    }
