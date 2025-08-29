@@ -1,43 +1,71 @@
+############################
 # Build artifacts
+############################
 bin/
 obj/
 Debug/
 Release/
 
-# Rider / Visual Studio
+############################
+# IDE / Editor
+############################
 .vs/
 .idea/
-
-# User-specific
-*.user
+.vscode/
 *.suo
+*.user
 
+############################
 # Logs
+############################
 *.log
+TestResult.xml
+coverage*.xml
+*.coverage
+*.coveragexml
 
-# NuGet
+############################
+# NuGet / Packages
+############################
 *.nupkg
 *.snupkg
 packages/
 
+############################
 # Cache / Temp
+############################
 *.cache
 *.tmp
 
-# Playwright / Node
-.playwright/
+############################
+# Node / Frontend
+############################
 node_modules/
 package-lock.json
-package.json
+yarn.lock
+pnpm-lock.yaml
+.playwright/
 
-# Generated data
-data/
-*.csv
-*.txt
-
-# Others
+############################
+# Database / Local data
+############################
 *.dbmdl
 *.bak
 *.db
 *.mdf
 *.ldf
+
+############################
+# Generated / Export files
+############################
+*.csv
+*.txt
+
+# ⚠️ cuidado com "data/": ignora apenas na raiz
+/data/
+
+############################
+# OS / Misc
+############################
+.DS_Store
+Thumbs.db
