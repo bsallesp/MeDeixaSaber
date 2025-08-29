@@ -1,3 +1,10 @@
+﻿using MDS.Data.Repositories;
+using MDS.Application.Abstractions.Data;
+
+using MDS.Application.Abstractions.Messaging;
+using MDS.Application.News.Queries;
+
+using MeDeixaSaber.Core.Models;
 using System.Threading.RateLimiting;
 using MDS.Application.Security;
 using MDS.Application.Security.Interfaces;
@@ -21,13 +28,16 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<JwtOptions>>().Value);
 builder.Services.AddSingleton<ITokenGenerator, JwtTokenGenerator>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
 builder.Services.AddEndpointsApiExplorer();
-
+builder.Services.AddScoped<MDS.Application.Abstractions.Data.IClassifiedsUnifiedReadRepository, MDS.Data.Repositories.SqlClassifiedsUnifiedReadRepository>();builder.Services.AddScoped<IOutsideNewsReadRepository, SqlOutsideNewsReadRepository>();
+builder.Services.AddScoped<IOutsideNewsReadRepository, NullOutsideNewsReadRepository>();
+builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddJwtAuthentication(builder.Configuration);
@@ -73,3 +83,8 @@ app.MapControllers();
 app.Run();
 
 public partial class Program { }
+
+
+
+
+

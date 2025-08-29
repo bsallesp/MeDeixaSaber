@@ -1,4 +1,6 @@
-﻿using MDS.Runner.NewsLlm.Journalists.Interfaces;
+﻿using MDS.Infrastructure.Integrations;
+using MDS.Infrastructure.Integrations.NewsApi.Dto;
+using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.NewsLlm.Journalists
@@ -11,14 +13,14 @@ namespace MDS.Runner.NewsLlm.Journalists
         private const int MaxArticlesPerRun = 12;
         private const int MaxConsecutiveFailures = 3;
 
-        public async Task<IReadOnlyCollection<News>> WriteAsync(NewsApiResponse payload, EditorialBias bias, CancellationToken ct = default)
+        public async Task<IReadOnlyCollection<OutsideNews>> WriteAsync(NewsApiResponseDto payload, EditorialBias bias, CancellationToken ct = default)
         {
-            var list = new List<News>();
+            var list = new List<OutsideNews>();
             await foreach (var n in StreamWriteAsync(payload, bias, ct)) list.Add(n);
             return list;
         }
 
-        public async IAsyncEnumerable<News> StreamWriteAsync(NewsApiResponse payload, EditorialBias bias, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<OutsideNews> StreamWriteAsync(NewsApiResponseDto payload, EditorialBias bias, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(payload);
             if (IsRewriteDisabledByEnv()) yield break;
@@ -30,7 +32,7 @@ namespace MDS.Runner.NewsLlm.Journalists
                 .OrderByDescending(a => a.PublishedAt)
                 .Take(MaxArticlesPerRun)
                 .Select(a => _mapper.Map(a))
-                .OfType<News>()
+                .OfType<OutsideNews>()
                 .ToList();
 
             var consecutiveFailures = 0;
@@ -39,7 +41,7 @@ namespace MDS.Runner.NewsLlm.Journalists
             {
                 ct.ThrowIfCancellationRequested();
 
-                News? rewritten = null;
+                OutsideNews? rewritten = null;
                 bool shouldYield = false;
 
                 try

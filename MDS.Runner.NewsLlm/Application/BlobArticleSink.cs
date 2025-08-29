@@ -16,7 +16,7 @@ public sealed class BlobArticleSink(IBlobSaver saver, string prefix = "news-llm"
         WriteIndented = false
     };
 
-    public async Task InsertAsync(News item)
+    public async Task InsertAsync(OutsideNews item)
     {
         if (item.CreatedAt == default) item.CreatedAt = DateTime.UtcNow;
         var json = JsonSerializer.Serialize(item, JsonOpts);

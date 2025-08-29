@@ -7,5 +7,5 @@ namespace MDS.Runner.NewsLlm.Application;
 public sealed class DbArticleSink(NewsRepository repo) : IArticleSink
 {
     private readonly NewsRepository _repo = repo ?? throw new ArgumentNullException(nameof(repo));
-    public Task InsertAsync(News item) => _repo.InsertAsync(item);
+    public Task InsertAsync(OutsideNews item) => _repo.InsertAsync(item);
 }

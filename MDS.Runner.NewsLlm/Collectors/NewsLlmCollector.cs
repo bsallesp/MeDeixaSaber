@@ -6,7 +6,7 @@ namespace MDS.Runner.NewsLlm.Collectors
 {
     public interface INewsCollectorService
     {
-        Task<News?> GetLatestAsync(string topic, ISet<string> titlesToday, CancellationToken ct = default);
+        Task<OutsideNews?> GetLatestAsync(string topic, ISet<string> titlesToday, CancellationToken ct = default);
     }
 
     public sealed class NewsLlmCollector(
@@ -18,7 +18,7 @@ namespace MDS.Runner.NewsLlm.Collectors
     {
         readonly string _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
 
-        public async Task<News?> GetLatestAsync(string topic, ISet<string> titlesToday, CancellationToken ct = default)
+        public async Task<OutsideNews?> GetLatestAsync(string topic, ISet<string> titlesToday, CancellationToken ct = default)
         {
             topic ??= "imigração";
             titlesToday ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -82,7 +82,7 @@ namespace MDS.Runner.NewsLlm.Collectors
             var news = DeserializeToNews(payload);
             if (news is null)
             {
-                if (verbose) Console.WriteLine("[DISC] invalid JSON for News");
+                if (verbose) Console.WriteLine("[DISC] invalid JSON for OutsideNews");
                 return null;
             }
 
@@ -149,10 +149,10 @@ namespace MDS.Runner.NewsLlm.Collectors
             return (start >= 0 && end > start) ? s.Substring(start, end - start + 1) : null;
         }
 
-        static News? DeserializeToNews(string payload)
+        static OutsideNews? DeserializeToNews(string payload)
         {
-            if (TryDeserialize<News>(payload, out var one) && one is not null) return one;
-            if (TryDeserialize<List<News>>(payload, out var list) && list is { Count: > 0 }) return list[0];
+            if (TryDeserialize<OutsideNews>(payload, out var one) && one is not null) return one;
+            if (TryDeserialize<List<OutsideNews>>(payload, out var list) && list is { Count: > 0 }) return list[0];
             if (TryDeserialize<JsonElement>(payload, out var el) && el.ValueKind == JsonValueKind.Object)
                 return MapLooseObject(el);
             return null;
@@ -173,7 +173,7 @@ namespace MDS.Runner.NewsLlm.Collectors
             }
         }
 
-        static News? MapLooseObject(JsonElement obj)
+        static OutsideNews? MapLooseObject(JsonElement obj)
         {
             string GetStr(params string[] keys)
             {
@@ -206,7 +206,7 @@ namespace MDS.Runner.NewsLlm.Collectors
                     ? DateTime.SpecifyKind(c, DateTimeKind.Utc)
                     : c.ToUniversalTime();
 
-            return new News
+            return new OutsideNews
             {
                 Title = title,
                 Source = source,

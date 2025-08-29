@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
+using MDS.Infrastructure.Integrations;
+using MDS.Infrastructure.Integrations.NewsApi.Dto;
 using MDS.Runner.NewsLlm.Persisters;
 using MeDeixaSaber.Core.Models;
 
@@ -27,7 +29,7 @@ namespace MDS.Runner.NewsLlm.Collectors
 
     public interface INewsOrgCollector
     {
-        Task<NewsApiResponse?> RunAsync(string secretName, CancellationToken ct = default);
+        Task<NewsApiResponseDto?> RunAsync(string secretName, CancellationToken ct = default);
     }
 
     public sealed class NewsOrgCollector(ISecretReader secrets, IBlobSaver blobSaver, HttpClient http) : INewsOrgCollector
@@ -36,7 +38,7 @@ namespace MDS.Runner.NewsLlm.Collectors
         readonly IBlobSaver _blobSaver = blobSaver ?? throw new ArgumentNullException(nameof(blobSaver));
         readonly HttpClient _http = http ?? throw new ArgumentNullException(nameof(http));
 
-        public async Task<NewsApiResponse?> RunAsync(string secretName, CancellationToken ct = default)
+        public async Task<NewsApiResponseDto?> RunAsync(string secretName, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(secretName)) throw new ArgumentException("Required", nameof(secretName));
 
@@ -69,10 +71,10 @@ namespace MDS.Runner.NewsLlm.Collectors
             blobSw.Stop();
             Console.WriteLine($"[BLOB ok] id={runId} uri={uri} ms={blobSw.ElapsedMilliseconds}");
 
-            NewsApiResponse? payload = null;
+            NewsApiResponseDto? payload = null;
             try
             {
-                payload = JsonSerializer.Deserialize<NewsApiResponse>(
+                payload = JsonSerializer.Deserialize<NewsApiResponseDto>(
                     body,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 Console.WriteLine($"[JSON ok] id={runId} articles={(payload?.Articles?.Count ?? 0)}");

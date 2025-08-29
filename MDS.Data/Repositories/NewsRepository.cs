@@ -15,11 +15,11 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
     public NewsRepository(IDbConnectionFactory factory)
         : this(factory, NullLogger<NewsRepository>.Instance) { }
 
-    public async Task<IEnumerable<News>> GetByDayAsync(DateTime dayUtc)
+    public async Task<IEnumerable<OutsideNews>> GetByDayAsync(DateTime dayUtc)
     {
         await using var conn = await _factory.GetOpenConnectionAsync();
-        return await conn.QueryAsync<News>(
-            "select * from dbo.News where cast(PublishedAt as date)=@d order by PublishedAt desc, Id desc",
+        return await conn.QueryAsync<OutsideNews>(
+            "select * from dbo.OutsideNews where cast(PublishedAt as date)=@d order by PublishedAt desc, Id desc",
             new { d = dayUtc.Date });
     }
 
@@ -27,26 +27,26 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
     {
         await using var conn = await _factory.GetOpenConnectionAsync();
         return await conn.QueryAsync<string>(
-            "select Title from dbo.News where cast(PublishedAt as date)=@d",
+            "select Title from dbo.OutsideNews where cast(PublishedAt as date)=@d",
             new { d = dayUtc.Date });
     }
 
-    public async Task<IEnumerable<News>> GetLatestAsync(int take = 50)
+    public async Task<IEnumerable<OutsideNews>> GetLatestAsync(int take = 50)
     {
         await using var conn = await _factory.GetOpenConnectionAsync();
-        return await conn.QueryAsync<News>(
-            "select top (@take) * from dbo.News order by PublishedAt desc, Id desc",
+        return await conn.QueryAsync<OutsideNews>(
+            "select top (@take) * from dbo.OutsideNews order by PublishedAt desc, Id desc",
             new { take });
     }
 
-    public async Task InsertAsync(News entity)
+    public async Task InsertAsync(OutsideNews entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
 
         var sw = Stopwatch.StartNew();
         try
         {
-            _logger.LogInformation("News upsert start url={Url} title={Title}", entity.Url, entity.Title);
+            _logger.LogInformation("OutsideNews upsert start url={Url} title={Title}", entity.Url, entity.Title);
 
             const int timeoutSeconds = 15; // evita travar indefinidamente
             await using var conn = await _factory.GetOpenConnectionAsync();
@@ -64,18 +64,18 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
                 commandTimeout: timeoutSeconds);
 
             sw.Stop();
-            _logger.LogInformation("News upsert ok url={Url} rows={Rows} ms={Elapsed}",
+            _logger.LogInformation("OutsideNews upsert ok url={Url} rows={Rows} ms={Elapsed}",
                 entity.Url, rows, sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             sw.Stop();
-            _logger.LogError(ex, "News upsert error url={Url} ms={Elapsed}", entity.Url, sw.ElapsedMilliseconds);
+            _logger.LogError(ex, "OutsideNews upsert error url={Url} ms={Elapsed}", entity.Url, sw.ElapsedMilliseconds);
             throw;
         }
     }
 
-    public async Task InsertManyAsync(IEnumerable<News> items)
+    public async Task InsertManyAsync(IEnumerable<OutsideNews> items)
     {
         ArgumentNullException.ThrowIfNull(items);
         foreach (var entity in items)

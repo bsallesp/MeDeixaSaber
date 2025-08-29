@@ -31,4 +31,8 @@
         <ProjectReference Include="..\MDS.Data\MDS.Data.csproj" />
         <ProjectReference Include="..\MDS.Runner.Scraper\MDS.Runner.Scraper.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="TestResults\" />
+    </ItemGroup>
 </Project>

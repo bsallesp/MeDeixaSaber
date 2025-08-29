@@ -20,7 +20,7 @@ namespace MDS.Tests.Journalists
 
         static HttpClient Client(params HttpResponseMessage[] responses) => new(new QueueHandler(responses));
 
-        static string PayloadJson(News src, string createdAt = "2024-01-01T00:00:00Z") =>
+        static string PayloadJson(OutsideNews src, string createdAt = "2024-01-01T00:00:00Z") =>
             $$"""
             {
               "Title": "Rewritten Title",
@@ -43,7 +43,7 @@ namespace MDS.Tests.Journalists
         [Fact]
         public async Task RewriteAsync_HappyPath_ParsesAndOverridesFields()
         {
-            var src = new News
+            var src = new OutsideNews
             {
                 Title = "t",
                 Summary = "d",
@@ -70,7 +70,7 @@ namespace MDS.Tests.Journalists
         [Fact]
         public async Task RewriteAsync_NonSuccess_Throws()
         {
-            var src = new News
+            var src = new OutsideNews
             {
                 Title = "t",
                 Content = "c",
@@ -93,7 +93,7 @@ namespace MDS.Tests.Journalists
         [Fact]
         public async Task RewriteAsync_EmptyOutput_Throws()
         {
-            var src = new News
+            var src = new OutsideNews
             {
                 Title = "t",
                 Content = "c",
@@ -116,7 +116,7 @@ namespace MDS.Tests.Journalists
         [Fact]
         public async Task RewriteAsync_FillsCreatedAt_WhenDefault()
         {
-            var src = new News
+            var src = new OutsideNews
             {
                 Title = "t",
                 Content = "c",

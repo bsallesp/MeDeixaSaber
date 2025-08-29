@@ -1,4 +1,6 @@
 ﻿using FluentAssertions;
+using MDS.Infrastructure.Integrations;
+using MDS.Infrastructure.Integrations.NewsApi.Dto;
 using MDS.Runner.NewsLlm.Journalists;
 using MeDeixaSaber.Core.Models;
 using Xunit;
@@ -19,7 +21,7 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
         [Fact]
         public void Map_MissingTitle_ReturnsNull()
         {
-            var article = new NewsArticle { Url = "https://x" };
+            var article = new NewsArticleDto { Url = "https://x" };
             var result = _sut.Map(article);
             result.Should().BeNull();
         }
@@ -27,7 +29,7 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
         [Fact]
         public void Map_MissingUrl_ReturnsNull()
         {
-            var article = new NewsArticle { Title = "t" };
+            var article = new NewsArticleDto { Title = "t" };
             var result = _sut.Map(article);
             result.Should().BeNull();
         }
@@ -36,14 +38,14 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
         public void Map_Valid_MapsFields()
         {
             var dt = DateTime.UtcNow.AddHours(-1);
-            var article = new NewsArticle
+            var article = new NewsArticleDto
             {
                 Title = "t",
                 Description = "d",
                 Content = "c",
                 Url = "https://x",
                 PublishedAt = dt,
-                Source = new NewsSource { Name = "S" }
+                Source = new NewsSourceDto { Name = "S" }
             };
 
             var result = _sut.Map(article)!;
@@ -59,11 +61,11 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
         [Fact]
         public void Map_SourceNameNull_UsesUnknown()
         {
-            var article = new NewsArticle
+            var article = new NewsArticleDto
             {
                 Title = "t",
                 Url = "https://x",
-                Source = new NewsSource { Name = null }
+                Source = new NewsSourceDto { Name = null }
             };
 
             var result = _sut.Map(article)!;
@@ -74,7 +76,7 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
         public void Map_PublishedAtDefault_UsesUtcNow()
         {
             var before = DateTime.UtcNow.AddSeconds(-2);
-            var article = new NewsArticle
+            var article = new NewsArticleDto
             {
                 Title = "t",
                 Url = "https://x",

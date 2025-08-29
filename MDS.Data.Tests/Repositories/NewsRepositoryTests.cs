@@ -35,14 +35,14 @@ public class NewsRepositoryTests
     public async Task InsertAsync_WhenConnectionThrows_ShouldPropagate()
     {
         var repo = CreateRepo(() => new ThrowingConnection(new Exception("insert fail")));
-        await Assert.ThrowsAsync<Exception>(() => repo.InsertAsync(new News { Title = "t", Url = "u" }));
+        await Assert.ThrowsAsync<Exception>(() => repo.InsertAsync(new OutsideNews { Title = "t", Url = "u" }));
     }
 
     [Fact]
     public async Task InsertManyAsync_WhenConnectionThrows_ShouldPropagate()
     {
         var repo = CreateRepo(() => new ThrowingConnection(new Exception("bulk fail")));
-        var list = new[] { new News { Title = "a", Url = "b" } };
+        var list = new[] { new OutsideNews { Title = "a", Url = "b" } };
         await Assert.ThrowsAsync<Exception>(() => repo.InsertManyAsync(list));
     }
 

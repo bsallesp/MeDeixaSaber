@@ -6,7 +6,7 @@ namespace MDS.Runner.NewsLlm.Journalists
 {
     public interface IOpenAiNewsRewriter
     {
-        Task<News> RewriteAsync(News source, EditorialBias bias, CancellationToken ct = default);
+        Task<OutsideNews> RewriteAsync(OutsideNews source, EditorialBias bias, CancellationToken ct = default);
     }
 
     public sealed class OpenAiNewsRewriter(
@@ -29,7 +29,7 @@ namespace MDS.Runner.NewsLlm.Journalists
         private const int MaxRetries = 3;
         private static readonly TimeSpan PerAttemptTimeout = TimeSpan.FromSeconds(20);
 
-        public async Task<News> RewriteAsync(News source, EditorialBias bias, CancellationToken ct = default)
+        public async Task<OutsideNews> RewriteAsync(OutsideNews source, EditorialBias bias, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(source);
 
@@ -183,7 +183,7 @@ namespace MDS.Runner.NewsLlm.Journalists
                     throw new InvalidOperationException("Empty payload");
                 }
 
-                var rewritten = JsonSerializer.Deserialize<News>(payload,
+                var rewritten = JsonSerializer.Deserialize<OutsideNews>(payload,
                                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                                 ?? throw new InvalidOperationException("Invalid JSON");
 
@@ -199,7 +199,7 @@ namespace MDS.Runner.NewsLlm.Journalists
             throw new InvalidOperationException("OpenAI retry limit reached.");
         }
 
-        private static void Validate(News n)
+        private static void Validate(OutsideNews n)
         {
             if (string.IsNullOrWhiteSpace(n.Title)) throw new InvalidOperationException("Title required");
             if (string.IsNullOrWhiteSpace(n.Content)) throw new InvalidOperationException("Content required");

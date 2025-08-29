@@ -1,9 +1,11 @@
-﻿using MeDeixaSaber.Core.Models;
+﻿using MDS.Infrastructure.Integrations;
+using MDS.Infrastructure.Integrations.NewsApi.Dto;
+using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.NewsLlm.Journalists.Interfaces;
 
 public interface IJournalist
 {
-    Task<IReadOnlyCollection<News>> WriteAsync(NewsApiResponse payload, EditorialBias bias, CancellationToken ct = default);
-    IAsyncEnumerable<News> StreamWriteAsync(NewsApiResponse payload, EditorialBias bias, CancellationToken ct = default);
+    Task<IReadOnlyCollection<OutsideNews>> WriteAsync(NewsApiResponseDto payload, EditorialBias bias, CancellationToken ct = default);
+    IAsyncEnumerable<OutsideNews> StreamWriteAsync(NewsApiResponseDto payload, EditorialBias bias, CancellationToken ct = default);
 }

@@ -24,6 +24,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\MDS.Application\MDS.Application.csproj" />
+      <ProjectReference Include="..\MDS.Data\MDS.Data.csproj" />
       <ProjectReference Include="..\MDS.Infrastructure\MDS.Infrastructure.csproj" />
     </ItemGroup>
 
