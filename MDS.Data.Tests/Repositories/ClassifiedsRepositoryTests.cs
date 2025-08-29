@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Reflection;
+using System.Threading.Tasks;
 using FluentAssertions;
 using MDS.Data.Repositories;
 using MeDeixaSaber.Core.Models;
@@ -15,7 +17,6 @@ public class ClassifiedsRepositoryTests
     {
         var repo = new ClassifiedsRepository(
             new FakeFactory(() => new ThrowingConnection(new Exception())),
-            new FakeNormalizer(""),
             NullLogger<ClassifiedsRepository>.Instance);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => repo.GetLatestAsync(0));
@@ -26,26 +27,24 @@ public class ClassifiedsRepositoryTests
     {
         var repo = new ClassifiedsRepository(
             new FakeFactory(() => new ThrowingConnection(new Exception())),
-            new FakeNormalizer(""),
             NullLogger<ClassifiedsRepository>.Instance);
 
         await Assert.ThrowsAsync<ArgumentNullException>(() => repo.InsertAsync(null!));
     }
 
     [Fact]
-    public async Task InsertAsync_DuplicateKey_ShouldThrowInvalidOperationWithMessage()
+    public async Task InsertAsync_DuplicateKey_ShouldThrowInvalidOperationWithMessage_AndKeepTitleUnchanged()
     {
         var sqlEx = CreateSqlException(2627);
         var repo = new ClassifiedsRepository(
             new FakeFactory(() => new ThrowingConnection(sqlEx)),
-            new FakeNormalizer("_n"),
             NullLogger<ClassifiedsRepository>.Instance);
 
         var entity = new Classified { Title = "t", PostDate = DateTime.UtcNow };
         var act = async () => await repo.InsertAsync(entity);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(act);
         ex.Message.Should().Contain("Duplicate key violation");
-        entity.Title.Should().EndWith("_n");
+        entity.Title.Should().Be("t");
     }
 
     static SqlException CreateSqlException(int number)
