@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using MDS.Application.Abstractions.Data;
+using MDS.Application.Abstractions.Messaging;
+using MDS.Application.News.Queries;
+using MeDeixaSaber.Core.Models;
 
 namespace MDS.Api.Tests.Middleware;
 
@@ -21,6 +25,8 @@ public sealed class WebAppFactoryCors : WebApplicationFactory<Program>
                      .AllowAnyHeader()
                      .AllowAnyMethod());
             });
+            services.AddSingleton<IOutsideNewsReadRepository, FakeOutsideNewsReadRepository>();
+            services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
         });
         builder.ConfigureAppConfiguration((ctx, cfg) =>
         {

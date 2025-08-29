@@ -1,14 +1,10 @@
 ﻿using MDS.Infrastructure.Integrations;
 using MDS.Infrastructure.Integrations.NewsApi.Dto;
+using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.NewsLlm.Journalists
 {
-    public interface INewsMapper
-    {
-        OutsideNews? Map(NewsArticleDto articleDto);
-    }
-
     public sealed class NewsMapper : INewsMapper
     {
         public OutsideNews? Map(NewsArticleDto articleDto)

@@ -1,9 +1,7 @@
 ﻿using MDS.Data.Repositories;
 using MDS.Application.Abstractions.Data;
-
 using MDS.Application.Abstractions.Messaging;
 using MDS.Application.News.Queries;
-
 using MeDeixaSaber.Core.Models;
 using System.Threading.RateLimiting;
 using MDS.Application.Security;
@@ -21,9 +19,9 @@ builder.Services.AddControllers();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendOnly", p =>
-        p.WithOrigins("http://localhost:4200/")
-         .AllowAnyHeader()
-         .AllowAnyMethod());
+        p.WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod());
 });
 
 builder.Services.AddAuthorization();
@@ -34,10 +32,22 @@ builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<JwtOptions>>(
 builder.Services.AddSingleton<ITokenGenerator, JwtTokenGenerator>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddScoped<IOutsideNewsReadRepository, NullOutsideNewsReadRepository>();
+}
+else
+{
+    builder.Services.AddScoped<IOutsideNewsReadRepository, SqlOutsideNewsReadRepository>();
+}
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddScoped<MDS.Application.Abstractions.Data.IClassifiedsUnifiedReadRepository, MDS.Data.Repositories.SqlClassifiedsUnifiedReadRepository>();builder.Services.AddScoped<IOutsideNewsReadRepository, SqlOutsideNewsReadRepository>();
-builder.Services.AddScoped<IOutsideNewsReadRepository, NullOutsideNewsReadRepository>();
-builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
+
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddScoped<IClassifiedsUnifiedReadRepository, SqlClassifiedsUnifiedReadRepository>();
+}
+
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddJwtAuthentication(builder.Configuration);
@@ -82,9 +92,6 @@ app.MapControllers();
 
 app.Run();
 
-public partial class Program { }
-
-
-
-
-
+public partial class Program
+{
+}

@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
+using System.Text.Json;
 using FluentAssertions;
-using MDS.Application.Abstractions.Data;
-using MDS.Api.Tests.Controllers;
 using MDS.Api.Tests.Support;
-using Xunit;
 
 namespace MDS.Api.Tests.Controllers
 {
@@ -17,46 +11,48 @@ namespace MDS.Api.Tests.Controllers
         [Fact]
         public async Task GetByDay_Returns_Ok_With_Correct_Shape_And_Count()
         {
-            await using var factory = new WebAppFactory();
+            await using var factory = new WebAppFactoryClassifieds();
             var client = factory.CreateClient();
             var day = DateTime.UtcNow.ToString("yyyy-MM-dd");
 
-            var resp = await client.GetAsync($"/api/classifieds/{day}?take=5&skip=3");
+            var resp = await client.GetAsync($"/api/classifieds/by-day?day={day}&take=5&skip=3");
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
-            var items = await resp.Content.ReadFromJsonAsync<List<ClassifiedUnifiedDto>>();
+            var items = await resp.Content.ReadFromJsonAsync<List<JsonElement>>();
 
             items.Should().NotBeNull();
             items!.Should().HaveCount(5);
             items!.All(x =>
-                    !string.IsNullOrWhiteSpace(x.Title) &&
-                    !string.IsNullOrWhiteSpace(x.Description) &&
-                    !string.IsNullOrWhiteSpace(x.Url))
+                    !string.IsNullOrWhiteSpace(x.GetProperty("title").GetString()) &&
+                    !string.IsNullOrWhiteSpace(x.GetProperty("description").GetString()) &&
+                    !string.IsNullOrWhiteSpace(x.GetProperty("url").GetString()))
                 .Should().BeTrue();
 
-            items!.All(x => x.PostDate == day).Should().BeTrue();
+            items!.All(x => x.GetProperty("postDate").GetString() == day).Should().BeTrue();
         }
 
         [Fact]
         public async Task GetByDay_Invalid_Date_Returns_BadRequest()
         {
-            await using var factory = new WebAppFactory();
+            await using var factory = new WebAppFactoryClassifieds();
             var client = factory.CreateClient();
 
-            var resp = await client.GetAsync("/api/classifieds/2025-13-40");
+            var resp = await client.GetAsync("/api/classifieds/by-day?day=2025-13-40");
 
             resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
 
         [Fact]
-        public async Task GetTop_Empty_Returns_NoContent()
+        public async Task GetTop_Empty_Returns_Empty_List()
         {
-            await using var factory = new WebAppFactory();
+            await using var factory = new WebAppFactoryClassifieds();
             var client = factory.CreateClient();
 
             var resp = await client.GetAsync("/api/classifieds/top?take=10&skip=1000");
 
-            resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
+            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+            var items = await resp.Content.ReadFromJsonAsync<List<JsonElement>>();
+            items!.Should().BeEmpty();
         }
 
         [Fact]

@@ -6,15 +6,9 @@ namespace MDS.Application.News.Queries;
 
 public sealed record GetTopNewsQuery(int PageSize) : IQuery<IReadOnlyList<OutsideNews>>;
 
-public sealed class GetTopNewsHandler : IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>
+public sealed class GetTopNewsHandler(IOutsideNewsReadRepository repo)
+    : IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>
 {
-    private readonly IOutsideNewsReadRepository _repo;
-
-    public GetTopNewsHandler(IOutsideNewsReadRepository repo)
-    {
-        _repo = repo;
-    }
-
     public Task<IReadOnlyList<OutsideNews>> Handle(GetTopNewsQuery request, CancellationToken cancellationToken)
-        => _repo.GetTopAsync(request.PageSize, cancellationToken);
+        => repo.GetTopAsync(request.PageSize, cancellationToken);
 }

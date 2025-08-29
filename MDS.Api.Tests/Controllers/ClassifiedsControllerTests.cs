@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using MDS.Api.Tests.Support;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -29,7 +30,7 @@ public class ClassifiedsControllerTests(WebAppFactoryClassifieds f) : IClassFixt
     {
         var resp = await _client.GetAsync("/api/classifieds/top");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-        var items = await resp.Content.ReadFromJsonAsync<List<dynamic>>();
+        var items = await resp.Content.ReadFromJsonAsync<List<JsonElement>>();
         Assert.NotNull(items);
         Assert.True(items!.Count > 0);
     }
@@ -37,12 +38,15 @@ public class ClassifiedsControllerTests(WebAppFactoryClassifieds f) : IClassFixt
     [Fact]
     public async Task GetTop_WithTakeSkip_ShouldRespectPaging()
     {
-        var page1 = await _client.GetFromJsonAsync<List<dynamic>>("/api/classifieds/top?take=3&skip=0");
-        var page2 = await _client.GetFromJsonAsync<List<dynamic>>("/api/classifieds/top?take=3&skip=3");
+        var page1 = await _client.GetFromJsonAsync<List<JsonElement>>("/api/classifieds/top?take=3&skip=0");
+        var page2 = await _client.GetFromJsonAsync<List<JsonElement>>("/api/classifieds/top?take=3&skip=3");
         Assert.NotNull(page1);
         Assert.NotNull(page2);
         Assert.Equal(3, page1!.Count);
         Assert.Equal(3, page2!.Count);
-        Assert.NotEqual(page1![0].id.ToString(), page2![0].id.ToString());
+        Assert.NotEqual(
+            page1![0].GetProperty("id").GetString(),
+            page2![0].GetProperty("id").GetString()
+        );
     }
 }

@@ -15,8 +15,15 @@ public sealed class NewsController(IQueryHandler<GetTopNewsQuery, IReadOnlyList<
     [HttpGet("top")]
     public async Task<ActionResult<IReadOnlyList<OutsideNews>>> GetTop([FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
-        var query = new GetTopNewsQuery(pageSize);
-        var result = await handler.Handle(query, ct);
-        return Ok(result);
+        try
+        {
+            var query = new GetTopNewsQuery(pageSize);
+            var result = await handler.Handle(query, ct);
+            return Ok(result);
+        }
+        catch
+        {
+            return StatusCode(500);
+        }
     }
 }

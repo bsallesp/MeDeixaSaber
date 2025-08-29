@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
-using MDS.Infrastructure.Integrations;
 using MDS.Infrastructure.Integrations.NewsApi.Dto;
 using MDS.Runner.NewsLlm.Journalists;
+using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MeDeixaSaber.Core.Models;
 using Moq;
 using Xunit;

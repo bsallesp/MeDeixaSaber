@@ -1,5 +1,4 @@
 ﻿using FluentAssertions;
-using MDS.Infrastructure.Integrations;
 using MDS.Infrastructure.Integrations.NewsApi.Dto;
 using MDS.Runner.NewsLlm.Abstractions;
 using MDS.Runner.NewsLlm.Application;
@@ -26,7 +25,7 @@ namespace MDS.Runner.NewsLlm.Test.Program
             var sut = new AppRunner(
                 collector.Object,
                 Mock.Of<MDS.Runner.NewsLlm.Journalists.IOpenAiNewsRewriter>(),
-                Mock.Of<MDS.Runner.NewsLlm.Journalists.INewsMapper>(),
+                Mock.Of<INewsMapper>(),
                 journalist.Object,
                 sink.Object);
 
@@ -79,7 +78,7 @@ namespace MDS.Runner.NewsLlm.Test.Program
             var sut = new AppRunner(
                 collector.Object,
                 Mock.Of<MDS.Runner.NewsLlm.Journalists.IOpenAiNewsRewriter>(),
-                Mock.Of<MDS.Runner.NewsLlm.Journalists.INewsMapper>(),
+                Mock.Of<INewsMapper>(),
                 journalist.Object,
                 sink.Object);
 
