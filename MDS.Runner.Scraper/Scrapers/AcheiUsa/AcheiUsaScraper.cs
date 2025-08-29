@@ -48,7 +48,7 @@ public static class AcheiUsaScraper
     static string ExtractTitle(HtmlDocument doc)
     {
         var og = doc.DocumentNode.SelectSingleNode("//meta[@property='og:title' or @name='og:title']")
-            ?.GetAttributeValue("content", null);
+            ?.GetAttributeValue("content", "");
         if (!string.IsNullOrWhiteSpace(og)) return Clean(og);
 
         var pageTitle = Clean(doc.DocumentNode.SelectSingleNode("//title")?.InnerText ?? "");

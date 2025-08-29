@@ -13,7 +13,7 @@ using var loggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(buil
         .AddFilter("Microsoft", LogLevel.Warning)
         .AddFilter("System", LogLevel.Warning)
         .AddFilter("MDS.Runner.Scraper", LogLevel.Debug)
-        .AddConsole(options => options.IncludeScopes = true);
+        .AddSimpleConsole(o => o.IncludeScopes = true);
 });
 
 var logger = loggerFactory.CreateLogger("MDS.Runner.Scraper");
