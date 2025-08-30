@@ -1,0 +1,9 @@
+$branch = "main"
+$pattern = '\.(ts|html|scss|css|json)$'
+
+git --no-pager ls-tree -r --name-only $branch |
+  Where-Object { $_ -match $pattern -and $_ -like "MDS.Frontend/*" } |
+  ForEach-Object {
+    "`n===== $_ =====`n"
+    git --no-pager show "${branch}:$_"
+  } | Out-File -Encoding utf8 -FilePath "MDS.Frontend\compiled-frontend.txt"
