@@ -1,6 +1,4 @@
-﻿using MDS.Api.Tests.Support;
-using MDS.Application.Abstractions.Data;
-using MDS.Application.Abstractions.Messaging;
+﻿using MDS.Application.Abstractions.Messaging;
 using MDS.Application.News.Queries;
 using MeDeixaSaber.Core.Models;
 using Microsoft.AspNetCore.Hosting;
@@ -11,13 +9,34 @@ namespace MDS.Api.Tests;
 
 public sealed class WebAppFactoryNews : WebApplicationFactory<Program>
 {
+    sealed class SuccessGetTopNewsHandler : IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>
+    {
+        public Task<IReadOnlyList<OutsideNews>> Handle(GetTopNewsQuery request, CancellationToken ct = default)
+        {
+            var n = request.PageSize <= 0 ? 0 : request.PageSize;
+            var now = DateTime.UtcNow;
+            var items = Enumerable.Range(1, n).Select(i => new OutsideNews
+            {
+                Id = i,
+                Title = $"News {i}",
+                Summary = $"Summary {i}",
+                Content = $"Content {i}",
+                Source = "test",
+                Url = $"https://example.com/{i}",
+                ImageUrl = null,
+                PublishedAt = now.AddMinutes(-i),
+                CreatedAt = now
+            }).ToList();
+            return Task.FromResult<IReadOnlyList<OutsideNews>>(items);
+        }
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureServices(services =>
+        builder.ConfigureServices(s =>
         {
-            services.AddSingleton<IOutsideNewsReadRepository, FakeOutsideNewsReadRepository>();
-            services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
+            s.AddSingleton<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, SuccessGetTopNewsHandler>();
         });
     }
 }

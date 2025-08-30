@@ -11,6 +11,9 @@ using MDS.Infrastructure.Security;
 using MDS.Infrastructure.Security.Interfaces;
 using MDS.Infrastructure.Time;
 using Microsoft.Extensions.Options;
+using MDS.Api.Security.Hmac;
+using MDS.Api.Security.Pow;
+using MDS.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,6 +78,17 @@ if (!builder.Environment.IsEnvironment("Testing"))
     });
 }
 
+builder.Services.AddResponseCaching();
+
+builder.Services.Configure<HmacSignatureOptions>(builder.Configuration.GetSection("Hmac"));
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IClientSecretProvider, InMemoryClientSecretProvider>();
+builder.Services.AddSingleton<INonceStore, MemoryNonceStore>();
+builder.Services.AddSingleton<HmacSignatureValidator>();
+builder.Services.AddScoped<HmacAuthFilter>();
+builder.Services.AddSingleton<IPowValidator, SimplePowValidator>();
+builder.Services.AddScoped<MDS.Api.Filters.RequirePowFilter>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsEnvironment("Testing"))
@@ -84,6 +98,10 @@ app.UseCors("FrontendOnly");
 
 if (!app.Environment.IsEnvironment("Testing"))
     app.UseRateLimiter();
+
+app.UseResponseCaching();
+
+app.UseMiddleware<BotDefenseMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

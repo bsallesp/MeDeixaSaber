@@ -37,9 +37,15 @@ public sealed class WebAppFactoryRateLimitedFast : WebApplicationFactory<Program
     }
 }
 
-public class RateLimiter_WindowReset_Tests(WebAppFactoryRateLimitedFast f) : IClassFixture<WebAppFactoryRateLimitedFast>
+public class RateLimiter_WindowReset_Tests : IClassFixture<WebAppFactoryRateLimitedFast>
 {
-    readonly HttpClient _client = f.CreateClient();
+    readonly HttpClient _client;
+
+    public RateLimiter_WindowReset_Tests(WebAppFactoryRateLimitedFast f)
+    {
+        _client = f.CreateClient();
+        _client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Tests/1.0");
+    }
 
     [Fact]
     public async Task UnderLimit_Then429_ThenReset_AllowsAgain()

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using MDS.Application.Abstractions.Messaging;
 using MDS.Application.News.Queries;
 using MeDeixaSaber.Core.Models;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,11 +37,13 @@ public sealed class News_Pagination_Edge_Tests : IClassFixture<WebApplicationFac
     {
         _client = factory.WithWebHostBuilder(builder =>
         {
+            builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, SuccessGetTopNewsHandler>();
             });
         }).CreateClient();
+        _client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Tests/1.0");
     }
 
     [Fact]

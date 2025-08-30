@@ -4,9 +4,15 @@ using FluentAssertions;
 
 namespace MDS.Api.Tests.Controllers;
 
-public sealed class NewsControllerTests(WebAppFactoryNews factory) : IClassFixture<WebAppFactoryNews>
+public sealed class NewsControllerTests : IClassFixture<WebAppFactoryNews>
 {
-    private readonly HttpClient _client = factory.CreateClient();
+    readonly HttpClient _client;
+
+    public NewsControllerTests(WebAppFactoryNews factory)
+    {
+        _client = factory.CreateClient();
+        _client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Tests/1.0");
+    }
 
     [Fact]
     public async Task GetTop_WithPageSize_Returns_ThatManyItems()

@@ -15,7 +15,7 @@ public sealed class WebAppFactoryCors : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Development");
+        builder.UseEnvironment("Testing");
         builder.ConfigureServices(services =>
         {
             services.AddCors(options =>
@@ -45,6 +45,7 @@ public class CorsTests(WebAppFactoryCors f) : IClassFixture<WebAppFactoryCors>
     {
         var req = new HttpRequestMessage(HttpMethod.Get, "/api/news/top");
         req.Headers.TryAddWithoutValidation("Origin", "http://localhost:4200");
+        req.Headers.TryAddWithoutValidation("User-Agent", "Tests/1.0");
         var resp = await _client.SendAsync(req);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.Equal("http://localhost:4200", resp.Headers.GetValues("Access-Control-Allow-Origin").Single());
@@ -55,6 +56,7 @@ public class CorsTests(WebAppFactoryCors f) : IClassFixture<WebAppFactoryCors>
     {
         var req = new HttpRequestMessage(HttpMethod.Get, "/api/news/top");
         req.Headers.TryAddWithoutValidation("Origin", "http://evil.example");
+        req.Headers.TryAddWithoutValidation("User-Agent", "Tests/1.0");
         var resp = await _client.SendAsync(req);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.False(resp.Headers.TryGetValues("Access-Control-Allow-Origin", out _));
