@@ -9,3 +9,14 @@ Get-ChildItem -Recurse -Include *.cs -File |
         "`n===== $($_.FullName) =====`n"
         Get-Content $_.FullName -Raw
     }
+    
+    
+$branch = "main"
+$pattern = '\.cs$'   # exemplo: pegar só arquivos .cs
+
+git --no-pager ls-tree -r --name-only $branch |
+  Where-Object { $_ -match $pattern } |
+  ForEach-Object {
+    "`n===== $_ =====`n"
+    git --no-pager show "${branch}:$_"
+  } | Out-File -Encoding utf8 -FilePath compiled.txt
