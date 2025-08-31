@@ -1,29 +1,18 @@
-﻿FROM mcr.microsoft.com/dotnet/runtime:9.0 AS base
-WORKDIR /app
-
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+﻿FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-
 COPY ["MDS.Runner.NewsLlm/MDS.Runner.NewsLlm.csproj", "MDS.Runner.NewsLlm/"]
 COPY ["MDS.Data/MDS.Data.csproj", "MDS.Data/"]
 COPY ["MDS.Infrastructure/MDS.Infrastructure.csproj", "MDS.Infrastructure/"]
 COPY ["MDS.Application/MDS.Application.csproj", "MDS.Application/"]
 COPY ["MeDeixaSaber.Core/MeDeixaSaber.Core.csproj", "MeDeixaSaber.Core/"]
-
 RUN dotnet restore "MDS.Runner.NewsLlm/MDS.Runner.NewsLlm.csproj"
-
 COPY . .
+WORKDIR /src/MDS.Runner.NewsLlm
+RUN dotnet publish -c $BUILD_CONFIGURATION -r linux-x64 --self-contained true -o /app/publish /p:PublishSingleFile=true /p:UseAppHost=true
 
-WORKDIR "/src/MDS.Runner.NewsLlm"
-RUN dotnet build "./MDS.Runner.NewsLlm.csproj" -c $BUILD_CONFIGURATION -o /app/build
-
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./MDS.Runner.NewsLlm.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-FROM base AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0 AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=build /app/publish .
 ENV DOTNET_EnableDiagnostics=0
-ENTRYPOINT ["dotnet", "MDS.Runner.NewsLlm.dll"]
+ENTRYPOINT ["./MDS.Runner.NewsLlm"]
