@@ -1,3 +1,11 @@
+@import '@primeng/themes/lara/theme.css';
+@import 'primeicons/primeicons.css';
+
+/* seu CSS existente abaixo */
+html, body { height: 100%; }
+body { margin: 0; }
+
+
 @font-face {
   font-family: "Poppins";
   src: url("assets/fonts/poppins/Poppins-Regular.ttf") format("truetype");

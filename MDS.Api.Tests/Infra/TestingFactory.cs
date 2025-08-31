@@ -41,29 +41,6 @@ public sealed class NonTestingFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(s =>
         {
             s.AddScoped<IClassifiedsUnifiedReadRepository, FakeClassifiedsRepo>();
-
-            var issuer = "iss";
-            var audience = "aud";
-            var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(new string('k', 32)));
-
-            s.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-             .AddJwtBearer(o =>
-             {
-                 o.TokenValidationParameters = new TokenValidationParameters
-                 {
-                     ValidateIssuer = true,
-                     ValidIssuer = issuer,
-                     ValidateAudience = true,
-                     ValidAudience = audience,
-                     ValidateIssuerSigningKey = true,
-                     IssuerSigningKey = signingKey,
-                     ValidateLifetime = true,
-                     ClockSkew = TimeSpan.FromMinutes(2)
-                 };
-                 o.MapInboundClaims = false;
-                 o.RequireHttpsMetadata = false;
-                 o.SaveToken = true;
-             });
         });
     }
 }

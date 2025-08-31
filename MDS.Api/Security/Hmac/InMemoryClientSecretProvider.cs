@@ -11,5 +11,10 @@ public sealed class InMemoryClientSecretProvider : IClientSecretProvider
         _secrets.TryAdd("demo-key", "demo-secret");
     }
 
-    public bool TryGetSecret(string apiKey, out string secret) => _secrets.TryGetValue(apiKey, out secret);
+    public bool TryGetSecret(string apiKey, out string secret)
+    {
+        var ok = _secrets.TryGetValue(apiKey, out var s);
+        secret = s ?? string.Empty;
+        return ok;
+    }
 }

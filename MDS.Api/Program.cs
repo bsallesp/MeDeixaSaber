@@ -14,6 +14,10 @@ using Microsoft.Extensions.Options;
 using MDS.Api.Security.Hmac;
 using MDS.Api.Security.Pow;
 using MDS.Api.Middleware;
+using MDS.Api.Filters;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,8 +30,6 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowAnyMethod());
 });
-
-builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
 builder.Services.AddSingleton<IClock, SystemClock>();
@@ -53,7 +55,33 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
 if (!builder.Environment.IsEnvironment("Testing"))
 {
-    builder.Services.AddJwtAuthentication(builder.Configuration);
+    var jwtSection = builder.Configuration.GetSection("Jwt");
+    var issuer = jwtSection.GetValue<string>("Issuer") ?? "iss";
+    var audience = jwtSection.GetValue<string>("Audience") ?? "aud";
+    var signingKey = jwtSection.GetValue<string>("SigningKey") ?? new string('k', 32);
+
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(o =>
+        {
+            o.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = issuer,
+                ValidateAudience = true,
+                ValidAudience = audience,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(2)
+            };
+            o.MapInboundClaims = false;
+            o.RequireHttpsMetadata = false;
+            o.SaveToken = true;
+        });
+
+    var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new();
+    Console.WriteLine($"[JWT] Issuer={jwt.Issuer}, Audience={jwt.Audience}, KeyLen={jwt.SigningKey?.Length ?? 0}");
 
     var rl = builder.Configuration.GetSection("RateLimit");
     var permitLimit = rl.GetValue("PermitLimit", 60);
@@ -78,6 +106,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
     });
 }
 
+builder.Services.AddAuthorization();
+
 builder.Services.AddResponseCaching();
 
 builder.Services.Configure<HmacSignatureOptions>(builder.Configuration.GetSection("Hmac"));
@@ -87,7 +117,7 @@ builder.Services.AddSingleton<INonceStore, MemoryNonceStore>();
 builder.Services.AddSingleton<HmacSignatureValidator>();
 builder.Services.AddScoped<HmacAuthFilter>();
 builder.Services.AddSingleton<IPowValidator, SimplePowValidator>();
-builder.Services.AddScoped<MDS.Api.Filters.RequirePowFilter>();
+builder.Services.AddScoped<RequirePowFilter>();
 
 var app = builder.Build();
 
