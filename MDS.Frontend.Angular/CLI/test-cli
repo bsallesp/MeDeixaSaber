@@ -1,1 +1,10 @@
-PS C:\Users\bsall\RiderProjects\MeDeixaSaber\MDS.Frontend.Angular\src> $env:CHROME_BIN="C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"; ng test --browsers=ChromeHeadless
+$env:CHROME_BIN="C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe";
+ng test --browsers=ChromeHeadless
+
+
+
+npx ng test --browsers=BraveHeadless
+
+
+$env:CHROME_BIN = 'C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe'
+npm run test:headless

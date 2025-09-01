@@ -13,13 +13,13 @@ const API_KEY = 'demo-key';
 const SECRET = 'demo-secret';
 
 async function sha256(data: Uint8Array): Promise<string> {
-  const hash = await crypto.subtle.digest('SHA-256', data);
+  const hash = await crypto.subtle.digest('SHA-256', data.buffer as ArrayBuffer);
   return toHex(hash);
 }
 
 async function hmacSha256(key: Uint8Array, msg: string): Promise<string> {
-  const k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg));
+  const k = await crypto.subtle.importKey('raw', key.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg).buffer as ArrayBuffer);
   return toHex(sig);
 }
 
