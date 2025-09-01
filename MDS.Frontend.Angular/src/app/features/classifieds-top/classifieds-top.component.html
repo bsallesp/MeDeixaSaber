@@ -1,0 +1,14 @@
+<!-- src/app/features/classifieds-top/classifieds-top.component.html -->
+<div *ngIf="loading()">carregando...</div>
+<div *ngIf="error() as e">
+  <pre>{{ e }}</pre>
+</div>
+<ul *ngIf="items() as list">
+  <li *ngFor="let c of list">
+    <div class="title">{{ c.title }}</div>
+    <div class="meta">{{ c.postDate }}</div>
+    <div class="desc">{{ c.description }}</div>
+    <a [href]="c.url" target="_blank" rel="noopener">abrir</a>
+    <div class="tags"><span *ngFor="let t of c.tags">{{ t }}</span></div>
+  </li>
+</ul>

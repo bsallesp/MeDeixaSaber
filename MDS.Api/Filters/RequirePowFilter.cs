@@ -4,20 +4,11 @@ using MDS.Api.Security.Pow;
 
 namespace MDS.Api.Filters;
 
-public sealed class RequirePowFilter : IAsyncActionFilter
+public sealed class RequirePowFilter(IPowValidator validator, IWebHostEnvironment env) : IAsyncActionFilter
 {
-    readonly IPowValidator _validator;
-    readonly IWebHostEnvironment _env;
-
-    public RequirePowFilter(IPowValidator validator, IWebHostEnvironment env)
-    {
-        _validator = validator;
-        _env = env;
-    }
-
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        if (_env.IsEnvironment("Testing"))
+        if (env.IsEnvironment("Testing"))
         {
             await next();
             return;
@@ -29,7 +20,7 @@ public sealed class RequirePowFilter : IAsyncActionFilter
             return;
         }
 
-        var ok = _validator.IsValid(pow.ToString(), 20, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), 180);
+        var ok = validator.IsValid(pow.ToString(), 12, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), 180);
         if (!ok)
         {
             context.Result = new ObjectResult(new { error = "invalid_pow" }) { StatusCode = StatusCodes.Status401Unauthorized };

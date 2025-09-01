@@ -21,7 +21,7 @@ public sealed class NewsController(IQueryHandler<GetTopNewsQuery, IReadOnlyList<
     [ResponseCache(
         Duration = 60, 
         Location = ResponseCacheLocation.Any,
-        VaryByQueryKeys = new[] { "pageSize" } // 👈 garante cache distinto por querystring
+        VaryByQueryKeys = new[] { "pageSize" }
     )]
     public async Task<ActionResult<IReadOnlyList<OutsideNews>>> GetTop([FromQuery] int pageSize = 10, CancellationToken ct = default)
     {

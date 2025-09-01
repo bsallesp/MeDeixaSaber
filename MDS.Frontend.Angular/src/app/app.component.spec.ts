@@ -20,10 +20,12 @@ describe('AppComponent', () => {
     expect(app.title).toEqual('MDS.Frontend.Angular');
   });
 
-  it('should render title', () => {
+  it('should render nav links', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, MDS.Frontend.Angular');
+    const nav = compiled.querySelector('nav');
+    expect(nav?.textContent).toContain('News Top');
+    expect(nav?.textContent).toContain('Classifieds Top');
   });
 });

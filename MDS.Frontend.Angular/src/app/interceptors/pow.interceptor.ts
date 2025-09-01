@@ -45,7 +45,7 @@ function needsPow(url: string, method: string): boolean {
 export const powInterceptor: HttpInterceptorFn = (req, next) => {
   if (!needsPow(req.url, req.method)) return next(req);
   const work = async () => {
-    const token = await mintPow(20);
+    const token = await mintPow(12);
     return req.clone({ setHeaders: { 'X-PoW': token } });
   };
   return from(work()).pipe(switchMap(clone => next(clone)));

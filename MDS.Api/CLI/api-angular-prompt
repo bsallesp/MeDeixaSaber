@@ -1,0 +1,51 @@
+$apiCsproj = 'C:\Users\bsall\RiderProjects\MeDeixaSaber\MDS.Api\MDS.Api.csproj'
+$ngRoot    = 'C:\Users\bsall\RiderProjects\MeDeixaSaber\MDS.Frontend.Angular'
+
+$skipRx = '\\(bin|obj|packages|\.vs|\.idea|node_modules|\.angular|dist|coverage|playwright|cypress|\.git)\\'
+
+$apiExt = @('.csproj','.cs','.json','.yaml','.yml','.xml','.editorconfig','.md')
+$ngExt  = @('.ts','.html','.scss','.css','.json','.yaml','.yml','.editorconfig','.md')
+
+$apiFiles = @()
+if (Test-Path $apiCsproj) {
+  $apiRoot = Split-Path $apiCsproj -Parent
+  $apiFiles += Get-Item $apiCsproj
+  if (Test-Path $apiRoot) {
+    $apiFiles += Get-ChildItem -Path $apiRoot -Recurse -File |
+      Where-Object {
+        ($_.FullName -notmatch $skipRx) -and
+        ($apiExt -contains $_.Extension.ToLower()) -and
+        ($_.Name -notmatch '\.Tests?\.') -and
+        ($_.FullName -notmatch '\\Tests?(\\|$)')
+      }
+  }
+}
+
+$ngFiles = @()
+if (Test-Path $ngRoot) {
+  $ngFiles += Get-ChildItem -Path $ngRoot -File -Recurse |
+    Where-Object {
+      ($_.FullName -notmatch $skipRx) -and
+      ($ngExt -contains $_.Extension.ToLower()) -and
+      ($_.Name -notmatch '\.spec\.ts$')
+    } |
+    Where-Object {
+      ($_.FullName -match '\\src\\') -or
+      ($_.Name -in @(
+        'package.json','angular.json','tsconfig.json','tsconfig.app.json',
+        'tsconfig.spec.json','nx.json','karma.conf.js','jest.config.js',
+        'eslint.config.js','eslint.config.cjs','pnpm-lock.yaml','yarn.lock'
+      ))
+    }
+}
+
+$files = @()
+$files += $apiFiles
+$files += $ngFiles
+
+$files = $files | Sort-Object FullName -Unique
+
+foreach ($f in $files) {
+  "`n===== $($f.FullName) =====`n"
+  Get-Content $f.FullName -Raw
+}
