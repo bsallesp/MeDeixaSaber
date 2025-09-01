@@ -5,10 +5,9 @@ import { ApiService } from '../../services/api.service'
 import { ClassifiedItem } from '../../models/classified-item'
 
 @Component({
-  selector: 'app-classifieds-top',
-  standalone: true,
-  imports: [CommonModule],
-  templateUrl: './classifieds-top.component.html'
+    selector: 'app-classifieds-top',
+    imports: [CommonModule],
+    templateUrl: './classifieds-top.component.html'
 })
 export default class ClassifiedsTopComponent {
   private api = inject(ApiService)

@@ -5,10 +5,9 @@ import { ApiService } from '../../services/api.service'
 import { NewsItem } from '../../models/news-item'
 
 @Component({
-  selector: 'app-news-top',
-  standalone: true,
-  imports: [CommonModule],
-  templateUrl: './news-top.component.html'
+    selector: 'app-news-top',
+    imports: [CommonModule],
+    templateUrl: './news-top.component.html'
 })
 export default class NewsTopComponent {
   private api = inject(ApiService)
