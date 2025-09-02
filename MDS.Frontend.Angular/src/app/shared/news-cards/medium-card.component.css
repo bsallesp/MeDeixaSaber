@@ -1,0 +1,19 @@
+.mcard {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-content-border-color, var(--p-surface-200));
+  border-radius: var(--p-border-radius, 12px);
+  padding: 12px;
+  height: 100%;
+}
+.mcard__link { text-decoration: none; color: inherit; }
+.mcard__title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+  color: var(--p-text-color, #111827);
+}
+.mcard__desc {
+  margin: 0;
+  color: var(--p-text-secondary-color, var(--p-surface-700));
+}

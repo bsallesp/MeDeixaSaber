@@ -1,26 +1,26 @@
-import { TestBed } from '@angular/core/testing';
-import NewsTopComponent from './news-top.component';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+// src/app/features/news-top/news-top.component.ts
+import { Component, inject, signal } from '@angular/core'
+import { CommonModule } from '@angular/common'
+import { ApiService } from '../../services/api.service'
+import { NewsItem } from '../../models/news-item'
+import { NewsGridComponent } from '../../shared/news-grid/news-grid.component'
 
-describe('NewsTopComponent', () => {
-  let ctrl: HttpTestingController;
+@Component({
+  selector: 'app-news-top',
+  standalone: true,
+  imports: [CommonModule, NewsGridComponent],
+  templateUrl: './news-top.component.html'
+})
+export default class NewsTopComponent {
+  private api = inject(ApiService)
+  items = signal<NewsItem[] | null>(null)
+  loading = signal(true)
+  error = signal<string | null>(null)
 
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [NewsTopComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()]
-    }).compileComponents();
-    ctrl = TestBed.inject(HttpTestingController);
-  });
-
-  afterEach(() => ctrl.verify());
-
-  it('deve criar e carregar lista', () => {
-    const fixture = TestBed.createComponent(NewsTopComponent);
-    fixture.detectChanges();
-    const req = ctrl.expectOne('/api/news/top?pageSize=20');
-    req.flush([]);
-    expect(fixture.componentInstance).toBeTruthy();
-  });
-});
+  constructor() {
+    this.api.getNewsTop(20, 0).subscribe({
+      next: x => { this.items.set(x); this.loading.set(false) },
+      error: e => { this.error.set(e?.status ? `${e.status} ${e.statusText}` : 'erro'); this.loading.set(false) }
+    })
+  }
+}

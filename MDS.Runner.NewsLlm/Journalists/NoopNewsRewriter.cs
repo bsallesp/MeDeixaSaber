@@ -1,4 +1,5 @@
-﻿using MeDeixaSaber.Core.Models;
+﻿using MDS.Runner.NewsLlm.Journalists.Interfaces;
+using MeDeixaSaber.Core.Models;
 
 namespace MDS.Runner.NewsLlm.Journalists
 {

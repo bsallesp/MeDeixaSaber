@@ -1,0 +1,12 @@
+.scard {
+  display: block;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--p-surface-200);
+  text-decoration: none;
+  color: var(--p-text-color, #111827);
+  transition: color .12s ease;
+}
+.scard:hover {
+  color: var(--p-primary-color);
+}
+.scard:last-child { border-bottom: 0; }

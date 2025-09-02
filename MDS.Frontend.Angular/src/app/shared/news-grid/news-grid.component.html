@@ -1,0 +1,15 @@
+<div class="newsgrid">
+  <section class="newsgrid__headline" *ngIf="headline() as h">
+    <app-headline-card [item]="{ title: h.title, description: h.description, postDate: h.postDate, url: h.url, tags: h.tags }" />
+  </section>
+
+  <section class="newsgrid__medium">
+    <div class="newsgrid__mediumGrid">
+      <app-medium-card *ngFor="let m of medium()" [item]="{ title: m.title, description: m.description, url: m.url }" />
+    </div>
+  </section>
+
+  <aside class="newsgrid__small">
+    <app-small-card *ngFor="let s of small()" [item]="{ title: s.title, url: s.url }" />
+  </aside>
+</div>

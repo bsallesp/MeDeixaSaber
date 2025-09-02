@@ -1,6 +1,9 @@
-<!-- src/app/app.component.html -->
-<nav class="nav">
-  <a routerLink="/news" routerLinkActive="active">News Top</a>
-  <a routerLink="/classifieds" routerLinkActive="active">Classifieds Top</a>
-</nav>
-<router-outlet></router-outlet>
+<header class="u-header">
+  <div class="u-container">
+    <app-top-nav></app-top-nav>
+  </div>
+</header>
+
+<main class="u-container">
+  <router-outlet></router-outlet>
+</main>

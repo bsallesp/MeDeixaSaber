@@ -24,7 +24,7 @@ namespace MDS.Runner.NewsLlm.Test.Program
 
             var sut = new AppRunner(
                 collector.Object,
-                Mock.Of<MDS.Runner.NewsLlm.Journalists.IOpenAiNewsRewriter>(),
+                Mock.Of<IOpenAiNewsRewriter>(),
                 Mock.Of<INewsMapper>(),
                 journalist.Object,
                 sink.Object);
@@ -77,7 +77,7 @@ namespace MDS.Runner.NewsLlm.Test.Program
 
             var sut = new AppRunner(
                 collector.Object,
-                Mock.Of<MDS.Runner.NewsLlm.Journalists.IOpenAiNewsRewriter>(),
+                Mock.Of<IOpenAiNewsRewriter>(),
                 Mock.Of<INewsMapper>(),
                 journalist.Object,
                 sink.Object);

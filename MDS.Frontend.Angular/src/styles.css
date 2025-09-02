@@ -1,1 +1,88 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  --p-font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --p-text-color: #1f2937;
+  --p-text-secondary-color: #374151;
+}
+
+/* Base tipografia + reset leve */
+html, body, .p-component {
+  font-family: var(--p-font-family), monospace;
+  margin: 0;
+  padding: 0;
+}
+html { color-scheme: light; }
+
+/* Cores globais puxando tokens do tema */
+html, body {
+  background: var(--p-surface-0, #f7f7f8);
+  color: var(--p-surface-800, #1f2937);
+}
+
+/* ===== Utilitários MDS (consomem APENAS tokens do tema) ===== */
+
+/* container responsivo */
+.u-container {
+  max-width: 1100px;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+/* header “shell” */
+.u-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--p-surface-0);
+  border-bottom: 1px solid var(--p-content-border-color, var(--p-surface-200));
+}
+
+/* nav básico horizontal */
+.u-nav {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+}
+
+/* lista horizontal */
+.u-nav__list {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* link de navegação: SEM cores hardcoded; só tokens */
+.u-nav__link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--p-border-radius, 10px);
+  text-decoration: none;
+  font-weight: 600;
+  color: var(--p-surface-800);
+  border: 1px solid transparent;
+  transition: background-color 120ms, color 120ms, border-color 120ms, box-shadow 120ms;
+}
+
+/* hover/focus/active sempre via tokens */
+.u-nav__link:hover {
+  background: color-mix(in oklab, var(--p-primary-color) 14%, transparent);
+  color: var(--p-primary-contrast-color, #fff);
+}
+.u-nav__link:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--p-focus-ring-color, var(--p-primary-color));
+}
+.u-nav__link.is-active {
+  background: var(--p-secondary-color);
+  color: var(--p-primary-contrast-color, #fff);
+  border-color: color-mix(in oklab, var(--p-primary-color) 70%, transparent);
+}
+
+/* responsivo */
+@media (max-width: 520px) {
+  .u-nav { min-height: auto; padding-block: 8px; }
+  .u-nav__list { flex-wrap: wrap; }
+}

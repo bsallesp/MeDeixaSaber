@@ -1,210 +1,137 @@
-﻿using System.Text;
+﻿using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
+using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MeDeixaSaber.Core.Models;
 
-namespace MDS.Runner.NewsLlm.Journalists
+namespace MDS.Runner.NewsLlm.Journalists;
+
+public sealed class OpenAiNewsRewriter(
+    HttpClient http,
+    string openAiKey,
+    string model = "gpt-4o-mini",
+    bool verbose = false)
+    : IOpenAiNewsRewriter
 {
-    public interface IOpenAiNewsRewriter
+    private readonly HttpClient _http = http ?? throw new ArgumentNullException(nameof(http));
+    private readonly string _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
+
+    public async Task<OutsideNews> RewriteAsync(OutsideNews original, EditorialBias bias, CancellationToken ct = default)
     {
-        Task<OutsideNews> RewriteAsync(OutsideNews source, EditorialBias bias, CancellationToken ct = default);
-    }
+        ArgumentNullException.ThrowIfNull(original);
 
-    public sealed class OpenAiNewsRewriter(
-        HttpClient http,
-        string apiKey,
-        string model = "gpt-4o-mini",
-        bool verbose = false)
-        : IOpenAiNewsRewriter
-    {
-        private readonly HttpClient _http = http ?? throw new ArgumentNullException(nameof(http));
+        var sys = "Você é um redator jornalístico. Reescreva com linguagem clara e neutra. Responda apenas com um JSON único e válido, em uma linha, sem markdown.";
+        var biasStr = bias.ToString();
 
-        private readonly string _apiKey = string.IsNullOrWhiteSpace(apiKey)
-            ? throw new ArgumentException("Required", nameof(apiKey))
-            : apiKey;
-
-        private readonly string _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
-
-        private const int MaxContentChars = 1500;
-        private const int MaxOutputTokens = 900;
-        private const int MaxRetries = 3;
-        private static readonly TimeSpan PerAttemptTimeout = TimeSpan.FromSeconds(20);
-
-        public async Task<OutsideNews> RewriteAsync(OutsideNews source, EditorialBias bias, CancellationToken ct = default)
+        var userObj = new
         {
-            ArgumentNullException.ThrowIfNull(source);
-
-            var biasInstr = bias switch
+            instruction = "Reescreva a notícia mantendo fatos, acrescentando contexto quando claro, sem inventar. Copie a imagem quando houver.",
+            original = new
             {
-                EditorialBias.Sensacionalista =>
-                    "ritmo acelerado, verbos fortes, sem exageros factuais, zero caixa-alta",
-                EditorialBias.Conservador => "tom sóbrio, ênfase em lei e ordem, custos fiscais e segurança pública",
-                EditorialBias.Progressista => "tom humanizado, foco em direitos, impacto social e equidade",
-                EditorialBias.Agressivo => "frases curtas, direto ao ponto, cobre inconsistências e responsabiliza",
-                _ => "crítico e equilibrado; descreva evidências; evite adjetivos normativos"
-            };
-
-            var desc = source.Summary ?? string.Empty;
-            var content = source.Content ?? string.Empty;
-            if (content.Length > MaxContentChars) content = content[..MaxContentChars];
-
-            var prompt = $@"Reescreva a notícia abaixo em português (pt-BR), {biasInstr}.
-                Produza um texto jornalístico entre 520 e 700 palavras, sem inventar fatos ou números.
-
-                Orientações:
-                - Mantenha a fidelidade às informações originais.
-                - Construa o texto em forma de notícia fluida, em parágrafos.
-                - O primeiro parágrafo deve ser o lide: direto e claro, resumindo o fato principal.
-                - Nos parágrafos seguintes, desenvolva contexto, implicações, posições das partes envolvidas e próximos passos.
-                - Encerre com um fecho analítico ou de perspectiva.
-                - Evite repetir expressões fixas como “Lide:”, “Contexto:” ou “O que está em jogo:”.
-                - Use estilo jornalístico natural, sem listas ou tópicos.
-
-                Mantenha:
-                - Source: ""{source.Source}""
-                - Url: ""{source.Url}""
-                - PublishedAt: ""{source.PublishedAt:yyyy-MM-ddTHH:mm:ssZ}""
-
-                Restrições:
-                - Title: 52–70 caracteres.
-                - Summary: até 220 caracteres, apenas uma frase.
-                - Content: corpo do texto em prosa contínua, 520–700 palavras.
-                - Não inventar informações.
-
-                Dados originais:
-                Título: {source.Title}
-                Resumo: {desc}
-                Trecho do conteúdo:
-                {content}
-
-                Responda APENAS com JSON:
-                {{
-                  ""Title"": ""..."",
-                  ""Summary"": ""..."",
-                  ""Content"": ""..."",
-                  ""Source"": ""{source.Source}"",
-                  ""Url"": ""{source.Url}"",
-                  ""PublishedAt"": ""{source.PublishedAt:yyyy-MM-ddTHH:mm:ssZ}"",
-                  ""CreatedAt"": ""{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}""
-                }}";
-
-            var schema = new
+                original.Title,
+                original.Summary,
+                original.Content,
+                original.Source,
+                original.Url,
+                original.ImageUrl,
+                PublishedAt = original.PublishedAt.ToUniversalTime().ToString("o"),
+                CreatedAt = original.CreatedAt.ToUniversalTime().ToString("o")
+            },
+            bias = biasStr,
+            output_contract = new
             {
-                type = "object",
-                additionalProperties = false,
-                required = new[] { "Title", "Summary", "Content", "Source", "Url", "PublishedAt", "CreatedAt" },
-                properties = new
-                {
-                    Title = new { type = "string" },
-                    Summary = new { type = "string" },
-                    Content = new { type = "string" },
-                    Source = new { type = "string", const_ = source.Source },
-                    Url = new { type = "string", const_ = source.Url },
-                    PublishedAt = new
-                    {
-                        type = "string", const_ = source.PublishedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-                    },
-                    CreatedAt = new { type = "string" }
-                }
-            };
-
-            var body = new
-            {
-                model = _model,
-                input = prompt,
-                temperature = 0.5,
-                max_output_tokens = MaxOutputTokens,
-                text = new
-                {
-                    format = new
-                    {
-                        type = "json_schema",
-                        name = "news",
-                        strict = true,
-                        schema
-                    }
-                }
-            };
-
-            for (var attempt = 0; attempt < MaxRetries; attempt++)
-            {
-                using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
-                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
-                req.Content = new StringContent(JsonSerializer.Serialize(body).Replace("\"const_\"", "\"const\""),
-                    Encoding.UTF8, "application/json");
-
-                if (verbose)
-                    Console.WriteLine(
-                        $"[JOUR request] model={_model} bias={bias} title={source.Title} attempt={attempt + 1}");
-
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(PerAttemptTimeout);
-
-                string json;
-                HttpResponseMessage resp;
-                try
-                {
-                    resp = await _http.SendAsync(req, cts.Token);
-                    json = await resp.Content.ReadAsStringAsync(cts.Token);
-                }
-                catch (TaskCanceledException)
-                {
-                    Console.WriteLine("[JOUR status] timeout");
-                    if (attempt + 1 < MaxRetries) continue;
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[JOUR status] http_error='{ex.Message}'");
-                    if (attempt + 1 < MaxRetries) continue;
-                    throw;
-                }
-
-                if (verbose) Console.WriteLine($"[JOUR status] {(int)resp.StatusCode} len={json.Length}");
-
-                if (!resp.IsSuccessStatusCode)
-                {
-                    if ((int)resp.StatusCode == 429 && attempt + 1 < MaxRetries)
-                    {
-                        var delayMs = (int)Math.Pow(2, attempt) * 1000;
-                        await Task.Delay(delayMs, ct);
-                        continue;
-                    }
-
-                    throw new InvalidOperationException($"OpenAI {(int)resp.StatusCode}: {json}");
-                }
-
-                var payload = ResponseTextExtractor.Extract(json);
-                if (verbose) Console.WriteLine($"[JOUR parse] payload_len={(payload?.Length ?? 0)}");
-
-                if (string.IsNullOrWhiteSpace(payload))
-                {
-                    Console.WriteLine("[JOUR parse] empty payload");
-                    if (attempt + 1 < MaxRetries) continue;
-                    throw new InvalidOperationException("Empty payload");
-                }
-
-                var rewritten = JsonSerializer.Deserialize<OutsideNews>(payload,
-                                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                                ?? throw new InvalidOperationException("Invalid JSON");
-
-                rewritten.Source = source.Source;
-                rewritten.Url = source.Url;
-                rewritten.PublishedAt = source.PublishedAt == default ? DateTime.UtcNow : source.PublishedAt;
-                if (rewritten.CreatedAt == default) rewritten.CreatedAt = DateTime.UtcNow;
-
-                Validate(rewritten);
-                return rewritten;
+                Title = "string",
+                Summary = "string|null",
+                Content = "string",
+                Source = "string",
+                Url = "string",
+                ImageUrl = "string|null",
+                PublishedAt = "ISO-8601 UTC datetime",
+                CreatedAt = "ISO-8601 UTC datetime"
             }
+        };
 
-            throw new InvalidOperationException("OpenAI retry limit reached.");
-        }
-
-        private static void Validate(OutsideNews n)
+        var req = new
         {
-            if (string.IsNullOrWhiteSpace(n.Title)) throw new InvalidOperationException("Title required");
-            if (string.IsNullOrWhiteSpace(n.Content)) throw new InvalidOperationException("Content required");
-            if (string.IsNullOrWhiteSpace(n.Source)) throw new InvalidOperationException("Source required");
-            if (string.IsNullOrWhiteSpace(n.Url)) throw new InvalidOperationException("Url required");
+            model = _model,
+            response_format = new
+            {
+                type = "json_schema",
+                json_schema = new
+                {
+                    name = "outside_news",
+                    schema = new
+                    {
+                        type = "object",
+                        additionalProperties = false,
+                        required = new[] { "Title", "Content", "Source", "Url", "PublishedAt", "CreatedAt" },
+                        properties = new
+                        {
+                            Title = new { type = "string" },
+                            Summary = new { type = new[] { "string", "null" } },
+                            Content = new { type = "string" },
+                            Source = new { type = "string" },
+                            Url = new { type = "string" },
+                            ImageUrl = new { type = new[] { "string", "null" } },
+                            PublishedAt = new { type = "string", format = "date-time" },
+                            CreatedAt = new { type = "string", format = "date-time" }
+                        }
+                    },
+                    strict = true
+                }
+            },
+            messages = new object[]
+            {
+                new { role = "system", content = sys },
+                new { role = "user", content = JsonSerializer.Serialize(userObj) }
+            }
+        };
+
+        using var httpReq = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(req), Encoding.UTF8, "application/json")
+        };
+        httpReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", openAiKey);
+
+        var httpResp = await _http.SendAsync(httpReq, ct);
+        if (!httpResp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Rewrite failed: {(int)httpResp.StatusCode}");
+
+        var json = await httpResp.Content.ReadAsStringAsync(ct);
+        if (verbose) Console.WriteLine($"[JOUR status] {(int)httpResp.StatusCode} len={json.Length}");
+
+        var text = ResponseTextExtractor.Extract(json);
+        if (verbose) Console.WriteLine($"[JOUR parse] payload_len={(text?.Length ?? 0)}");
+
+        if (string.IsNullOrWhiteSpace(text))
+            throw new InvalidOperationException("Rewrite returned empty output");
+
+        text = text.Replace("“", "\"").Replace("”", "\"").Replace("’", "'");
+        text = text.Trim();
+        var i = text.IndexOf('{');
+        var j = text.LastIndexOf('}');
+        if (i >= 0 && j > i) text = text.Substring(i, j - i + 1);
+
+        OutsideNews? news;
+        try
+        {
+            news = JsonSerializer.Deserialize<OutsideNews>(text, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         }
+        catch (JsonException)
+        {
+            throw new InvalidOperationException("Rewrite returned invalid JSON");
+        }
+
+        if (news is null)
+            throw new InvalidOperationException("Rewrite returned null JSON");
+
+        if (string.IsNullOrWhiteSpace(news.Title)) news.Title = original.Title;
+        if (string.IsNullOrWhiteSpace(news.Source)) news.Source = string.IsNullOrWhiteSpace(original.Source) ? "(unknown)" : original.Source;
+        if (string.IsNullOrWhiteSpace(news.Url)) news.Url = original.Url;
+        if (string.IsNullOrWhiteSpace(news.ImageUrl)) news.ImageUrl = original.ImageUrl;
+        if (news.PublishedAt == default) news.PublishedAt = original.PublishedAt == default ? DateTime.UtcNow : original.PublishedAt;
+        if (news.CreatedAt == default) news.CreatedAt = DateTime.UtcNow;
+
+        return news;
     }
 }

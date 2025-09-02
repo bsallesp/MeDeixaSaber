@@ -1,0 +1,12 @@
+<article class="headline">
+  <a class="headline__link" [href]="item.url" target="_blank" rel="noopener">
+    <h1 class="headline__title">{{ item.title }}</h1>
+  </a>
+  <p *ngIf="item.description" class="headline__desc">{{ item.description }}</p>
+  <div class="headline__meta">
+    <time *ngIf="item.postDate">{{ item.postDate }}</time>
+    <ul *ngIf="item.tags?.length" class="headline__tags">
+      <li *ngFor="let t of item.tags">{{ t }}</li>
+    </ul>
+  </div>
+</article>

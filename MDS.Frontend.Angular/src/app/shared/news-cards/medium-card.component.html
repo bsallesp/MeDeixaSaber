@@ -1,0 +1,6 @@
+<article class="mcard">
+  <a class="mcard__link" [href]="item.url" target="_blank" rel="noopener">
+    <h3 class="mcard__title">{{ item.title }}</h3>
+  </a>
+  <p *ngIf="item.description" class="mcard__desc">{{ item.description }}</p>
+</article>

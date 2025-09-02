@@ -6,6 +6,7 @@ using MDS.Runner.NewsLlm.Abstractions;
 using MDS.Runner.NewsLlm.Application;
 using MDS.Runner.NewsLlm.Collectors;
 using MDS.Runner.NewsLlm.Journalists;
+using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MDS.Runner.NewsLlm.Persisters;
 using Microsoft.Extensions.Logging;
 
@@ -33,7 +34,7 @@ internal static class Program
         var disableRewrite = IsRewriteDisabled();
         IOpenAiNewsRewriter rewriter = disableRewrite
             ? new NoopNewsRewriter()
-            : new OpenAiNewsRewriter(http, openAiKey, "gpt-4o-mini", verbose: true);
+            : new OpenAiNewsRewriter(http, openAiKey, model: "gpt-4o-mini", verbose: true);
 
         var mapper = new NewsMapper();
         var journalist = new Journalist(mapper, rewriter);

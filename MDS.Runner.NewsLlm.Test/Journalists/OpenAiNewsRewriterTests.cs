@@ -1,13 +1,10 @@
 ﻿using System.Net;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
 using FluentAssertions;
-using MeDeixaSaber.Core.Models;
 using MDS.Runner.NewsLlm.Journalists;
+using MeDeixaSaber.Core.Models;
 using Xunit;
 
-namespace MDS.Tests.Journalists
+namespace MDS.Runner.NewsLlm.Test.Journalists
 {
     public sealed class OpenAiNewsRewriterTests
     {
@@ -28,7 +25,7 @@ namespace MDS.Tests.Journalists
               "Content": "Body.",
               "Source": "{{src.Source}}",
               "Url": "{{src.Url}}",
-              "PublishedAt": "{{src.PublishedAt.ToUniversalTime():yyyy-MM-ddTHH:mm:ssZ}}",
+              "PublishedAt": "{{src.PublishedAt.ToUniversalTime():O}}",
               "CreatedAt": "{{createdAt}}"
             }
             """;

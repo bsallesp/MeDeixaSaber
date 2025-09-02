@@ -1,14 +1,4 @@
-<!-- src/app/features/news-top/news-top.component.html -->
 <div *ngIf="loading()">carregando...</div>
-<div *ngIf="error() as e">
-  <pre>{{ e }}</pre>
-</div>
-<ul *ngIf="items() as list">
-  <li *ngFor="let n of list">
-    <div class="title">{{ n.title }}</div>
-    <div class="meta">{{ n.postDate }}</div>
-    <div class="desc">{{ n.description }}</div>
-    <a [href]="n.url" target="_blank" rel="noopener">abrir</a>
-    <div class="tags"><span *ngFor="let t of n.tags">{{ t }}</span></div>
-  </li>
-</ul>
+<div *ngIf="error() as e"><pre>{{ e }}</pre></div>
+
+<app-news-grid *ngIf="items() as list" [items]="list"></app-news-grid>

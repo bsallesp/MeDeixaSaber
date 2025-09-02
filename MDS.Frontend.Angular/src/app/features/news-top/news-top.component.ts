@@ -3,10 +3,11 @@ import { Component, inject, signal } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { ApiService } from '../../services/api.service'
 import { NewsItem } from '../../models/news-item'
+import {NewsGridComponent} from '../../shared/news-grid/news-grid.component';
 
 @Component({
     selector: 'app-news-top',
-    imports: [CommonModule],
+  imports: [CommonModule, NewsGridComponent],
     templateUrl: './news-top.component.html'
 })
 export default class NewsTopComponent {
