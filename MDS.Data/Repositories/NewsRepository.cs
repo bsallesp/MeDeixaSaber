@@ -51,7 +51,7 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
             const int timeoutSeconds = 15; // evita travar indefinidamente
             await using var conn = await _factory.GetOpenConnectionAsync();
             var rows = await conn.ExecuteAsync(
-                "exec dbo.News_UpsertByUrl @Title,@Summary,@Content,@Source,@Url,@PublishedAt",
+                "exec dbo.News_UpsertByUrl @Title,@Summary,@Content,@Source,@Url,@PublishedAt,@ImageUrl",
                 new
                 {
                     entity.Title,
@@ -59,7 +59,8 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
                     entity.Content,
                     entity.Source,
                     entity.Url,
-                    entity.PublishedAt
+                    entity.PublishedAt,
+                    entity.ImageUrl
                 },
                 commandTimeout: timeoutSeconds);
 

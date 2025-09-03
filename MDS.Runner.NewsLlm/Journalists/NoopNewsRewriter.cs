@@ -15,6 +15,7 @@ namespace MDS.Runner.NewsLlm.Journalists
                 Source = source.Source,
                 Url = source.Url,
                 PublishedAt = source.PublishedAt == default ? DateTime.UtcNow : source.PublishedAt,
+                ImageUrl = source.ImageUrl,
                 CreatedAt = DateTime.UtcNow
             };
             return Task.FromResult(clone);

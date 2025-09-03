@@ -35,6 +35,11 @@ namespace MDS.Runner.NewsLlm.Journalists
                 .OfType<OutsideNews>()
                 .ToList();
 
+            foreach (var s in sources)
+            {
+                Console.WriteLine($"[DEBUG mapper] title='{s.Title}' imageUrl='{s.ImageUrl}'");
+            }
+
             var consecutiveFailures = 0;
 
             foreach (var src in sources)
@@ -47,6 +52,7 @@ namespace MDS.Runner.NewsLlm.Journalists
                 try
                 {
                     rewritten = await _rewriter.RewriteAsync(src, bias, ct);
+                    Console.WriteLine($"[DEBUG rewriter] url='{rewritten.Url}' imageUrl='{rewritten.ImageUrl}'");
                     consecutiveFailures = 0;
                     Console.WriteLine($"[JOUR ok] {src.Title}");
                     shouldYield = true;

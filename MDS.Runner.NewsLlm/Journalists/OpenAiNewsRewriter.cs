@@ -54,32 +54,7 @@ public sealed class OpenAiNewsRewriter(
         var req = new
         {
             model = _model,
-            response_format = new
-            {
-                type = "json_schema",
-                json_schema = new
-                {
-                    name = "outside_news",
-                    schema = new
-                    {
-                        type = "object",
-                        additionalProperties = false,
-                        required = new[] { "Title", "Content", "Source", "Url", "PublishedAt", "CreatedAt" },
-                        properties = new
-                        {
-                            Title = new { type = "string" },
-                            Summary = new { type = new[] { "string", "null" } },
-                            Content = new { type = "string" },
-                            Source = new { type = "string" },
-                            Url = new { type = "string" },
-                            ImageUrl = new { type = new[] { "string", "null" } },
-                            PublishedAt = new { type = "string", format = "date-time" },
-                            CreatedAt = new { type = "string", format = "date-time" }
-                        }
-                    },
-                    strict = true
-                }
-            },
+            response_format = new { type = "json_object" },
             messages = new object[]
             {
                 new { role = "system", content = sys },
@@ -87,20 +62,20 @@ public sealed class OpenAiNewsRewriter(
             }
         };
 
-        using var httpReq = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses")
+        using var httpReq = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions")
         {
             Content = new StringContent(JsonSerializer.Serialize(req), Encoding.UTF8, "application/json")
         };
         httpReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", openAiKey);
 
         var httpResp = await _http.SendAsync(httpReq, ct);
+        var respBody = await httpResp.Content.ReadAsStringAsync(ct);
         if (!httpResp.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Rewrite failed: {(int)httpResp.StatusCode}");
+            throw new InvalidOperationException($"Rewrite failed: {(int)httpResp.StatusCode} body={respBody}");
 
-        var json = await httpResp.Content.ReadAsStringAsync(ct);
-        if (verbose) Console.WriteLine($"[JOUR status] {(int)httpResp.StatusCode} len={json.Length}");
+        if (verbose) Console.WriteLine($"[JOUR status] {(int)httpResp.StatusCode} len={respBody.Length}");
 
-        var text = ResponseTextExtractor.Extract(json);
+        var text = ExtractContent(respBody);
         if (verbose) Console.WriteLine($"[JOUR parse] payload_len={(text?.Length ?? 0)}");
 
         if (string.IsNullOrWhiteSpace(text))
@@ -133,5 +108,39 @@ public sealed class OpenAiNewsRewriter(
         if (news.CreatedAt == default) news.CreatedAt = DateTime.UtcNow;
 
         return news;
+    }
+
+    private static string? ExtractContent(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
+        {
+            var choice = choices[0];
+            if (choice.TryGetProperty("message", out var message) && message.TryGetProperty("content", out var contentEl) && contentEl.ValueKind == JsonValueKind.String)
+                return contentEl.GetString();
+            if (choice.TryGetProperty("text", out var textEl) && textEl.ValueKind == JsonValueKind.String)
+                return textEl.GetString();
+        }
+
+        if (root.TryGetProperty("output_text", out var outputText) && outputText.ValueKind == JsonValueKind.String)
+            return outputText.GetString();
+
+        if (root.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Array && output.GetArrayLength() > 0)
+        {
+            var first = output[0];
+            if (first.TryGetProperty("content", out var contentArr) && contentArr.ValueKind == JsonValueKind.Array && contentArr.GetArrayLength() > 0)
+            {
+                var c0 = contentArr[0];
+                if (c0.TryGetProperty("text", out var t))
+                {
+                    if (t.ValueKind == JsonValueKind.String) return t.GetString();
+                    if (t.ValueKind == JsonValueKind.Object && t.TryGetProperty("value", out var tv) && tv.ValueKind == JsonValueKind.String) return tv.GetString();
+                }
+            }
+        }
+
+        return null;
     }
 }

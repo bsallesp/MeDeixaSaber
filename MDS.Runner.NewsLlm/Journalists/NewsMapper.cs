@@ -21,7 +21,8 @@ namespace MDS.Runner.NewsLlm.Journalists
                 Content = articleDto.Content ?? string.Empty,
                 Source = string.IsNullOrWhiteSpace(articleDto.Source?.Name) ? "(unknown)" : articleDto.Source!.Name,
                 Url = articleDto.Url,
-                PublishedAt = articleDto.PublishedAt == default ? DateTime.UtcNow : articleDto.PublishedAt
+                PublishedAt = articleDto.PublishedAt == default ? DateTime.UtcNow : articleDto.PublishedAt,
+                ImageUrl = articleDto.UrlToImage
             };
         }
     }

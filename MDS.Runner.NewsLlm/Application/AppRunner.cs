@@ -77,6 +77,7 @@ public sealed class AppRunner(
             try
             {
                 Console.WriteLine($"[APP] persistindo: {item.Title}");
+                Console.WriteLine($"[DEBUG persist] title='{item.Title}' imageUrl='{item.ImageUrl}'");
                 await _sink.InsertAsync(item);
                 Console.WriteLine($"[APP] persistiu_ok: {item.Url}");
                 ok++;
