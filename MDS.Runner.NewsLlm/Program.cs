@@ -28,8 +28,7 @@ internal static class Program
             new HttpClient { Timeout = TimeSpan.FromSeconds(60) });
 
         var openAiKey = await secretReader.GetAsync("openai-key");
-        using var http = new HttpClient();
-        http.Timeout = TimeSpan.FromSeconds(300);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(300) };
 
         var disableRewrite = IsRewriteDisabled();
         IOpenAiNewsRewriter rewriter = disableRewrite
@@ -48,14 +47,15 @@ internal static class Program
         var factory = new SqlConnectionFactory(
             "mds-sqlserver-eastus2-prod01.database.windows.net",
             "mds-sql-db-prod");
-        var repo = new NewsRepository(factory, repoLogger);
 
-        var dbSink = new DbArticleSink(repo);
-        var blobSaver = BlobSaver.Create("mdsprodstg04512", "news-llm");
-        var blobSink = new BlobArticleSink(blobSaver, "news-llm");
+        var repo    = new NewsRepository(factory, repoLogger);
+        var reader  = new DbArticleRead(repo); // << para checar existência por URL
+        var dbSink  = new DbArticleSink(repo);
+        var blob    = BlobSaver.Create("mdsprodstg04512", "news-llm");
+        var blobSink = new BlobArticleSink(blob, "news-llm");
         IArticleSink sink = new CompositeArticleSink([dbSink, blobSink]);
 
-        IAppRunner app = new Application.AppRunner(collector, rewriter, mapper, journalist, sink);
+        IAppRunner app = new Application.AppRunner(collector, rewriter, mapper, journalist, sink, reader);
 
         var count = await app.RunAsync();
 

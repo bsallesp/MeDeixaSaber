@@ -39,6 +39,19 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
             new { take });
     }
 
+    /// <summary>
+    /// Verifica existência por URL na tabela dbo.News (onde persistimos os itens novos).
+    /// </summary>
+    public async Task<bool> ExistsByUrlAsync(string url)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+        await using var conn = await _factory.GetOpenConnectionAsync();
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "select case when exists(select 1 from dbo.News where Url=@Url) then 1 else 0 end",
+            new { Url = url });
+        return exists == 1;
+    }
+
     public async Task InsertAsync(OutsideNews entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -51,6 +64,7 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
             const int timeoutSeconds = 15; // evita travar indefinidamente
             await using var conn = await _factory.GetOpenConnectionAsync();
             var rows = await conn.ExecuteAsync(
+                // SP atualizada com @ImageUrl opcional — ok se a SP ignorar o param extra.
                 "exec dbo.News_UpsertByUrl @Title,@Summary,@Content,@Source,@Url,@PublishedAt,@ImageUrl",
                 new
                 {

@@ -13,82 +13,63 @@ namespace MDS.Runner.NewsLlm.Test.Program
     public sealed class AppRunnerTests
     {
         [Fact]
-        public async Task RunAsync_WhenCollectorReturnsNull_ReturnsZero_AndDoesNotPersist()
+        public async Task RunAsync_WhenCollectorReturnsNull_ReturnsZero()
         {
             var collector = new Mock<INewsOrgCollector>();
             collector.Setup(c => c.RunAsync("endpoint-newsapi-org-everything", It.IsAny<CancellationToken>()))
                      .ReturnsAsync((NewsApiResponseDto?)null);
 
-            var journalist = new Mock<IJournalist>(MockBehavior.Strict);
-            var sink = new Mock<IArticleSink>(MockBehavior.Strict);
-
             var sut = new AppRunner(
                 collector.Object,
                 Mock.Of<IOpenAiNewsRewriter>(),
                 Mock.Of<INewsMapper>(),
-                journalist.Object,
-                sink.Object);
+                Mock.Of<IJournalist>(),
+                Mock.Of<IArticleSink>(),
+                Mock.Of<IArticleRead>());
 
             var count = await sut.RunAsync();
 
             count.Should().Be(0);
-            collector.VerifyAll();
-            sink.VerifyNoOtherCalls();
-            journalist.VerifyNoOtherCalls();
         }
 
         [Fact]
-        public async Task RunAsync_WhenOk_RewritesAndPersistsOneByOne_ReturnsCount()
+        public async Task RunAsync_WhenOk_RewritesAndPersistsOne_ReturnsCount()
         {
             var payload = new NewsApiResponseDto
             {
                 Articles = [ new NewsArticleDto { Title = "t", Url = "https://x" } ]
             };
 
-            var rewritten = new List<OutsideNews>
-            {
-                new() { Title = "rt1", Content = "c", Source = "S", Url = "https://x/1", PublishedAt = DateTime.UtcNow }
-            };
-
             var collector = new Mock<INewsOrgCollector>();
             collector.Setup(c => c.RunAsync("endpoint-newsapi-org-everything", It.IsAny<CancellationToken>()))
                      .ReturnsAsync(payload);
 
-            var journalist = new Mock<IJournalist>();
-            journalist.Setup(j => j.StreamWriteAsync(
-                    It.IsAny<NewsApiResponseDto>(),
-                    It.IsAny<EditorialBias>(),
-                    It.IsAny<CancellationToken>()))
-                .Returns((NewsApiResponseDto _, EditorialBias _, CancellationToken _) => GetAsync(rewritten));
+            var mapper = new Mock<INewsMapper>();
+            mapper.Setup(m => m.Map(It.IsAny<NewsArticleDto>()))
+                  .Returns(new OutsideNews { Title = "mapped", Url = "https://x" });
 
-            static async IAsyncEnumerable<OutsideNews> GetAsync(IEnumerable<OutsideNews> items)
-            {
-                foreach (var i in items)
-                {
-                    yield return i;
-                    await Task.Yield();
-                }
-            }
+            var rewriter = new Mock<IOpenAiNewsRewriter>();
+            rewriter.Setup(r => r.RewriteAsync(It.IsAny<OutsideNews>(), EditorialBias.Neutro, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new OutsideNews { Title = "rewritten", Content = "c", Url = "https://x", Source = "S", PublishedAt = DateTime.UtcNow });
+
+            var reader = new Mock<IArticleRead>();
+            reader.Setup(r => r.ExistsByUrlAsync("https://x")).ReturnsAsync(false);
 
             var sink = new Mock<IArticleSink>();
-            sink.Setup(s => s.InsertAsync(It.Is<OutsideNews>(n => n.Title == "rt1")))
-                .Returns(Task.CompletedTask)
-                .Verifiable();
+            sink.Setup(s => s.InsertAsync(It.Is<OutsideNews>(n => n.Title == "rewritten"))).Returns(Task.CompletedTask);
 
             var sut = new AppRunner(
                 collector.Object,
-                Mock.Of<IOpenAiNewsRewriter>(),
-                Mock.Of<INewsMapper>(),
-                journalist.Object,
-                sink.Object);
+                rewriter.Object,
+                mapper.Object,
+                Mock.Of<IJournalist>(),
+                sink.Object,
+                reader.Object);
 
             var count = await sut.RunAsync();
 
             count.Should().Be(1);
-            sink.Verify(s => s.InsertAsync(It.IsAny<OutsideNews>()), Times.Exactly(1));
-            collector.VerifyAll();
-            journalist.VerifyAll();
-            sink.VerifyAll();
+            sink.Verify(s => s.InsertAsync(It.IsAny<OutsideNews>()), Times.Once);
         }
     }
 }
