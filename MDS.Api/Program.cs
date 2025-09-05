@@ -18,6 +18,7 @@ using MDS.Api.Filters;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using MDS.Application.News.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +33,8 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
+builder.Services.AddScoped<IQueryHandler<GetLatestRelatedNewsQuery, IReadOnlyList<NewsRow>>, GetLatestRelatedNewsHandler>();
+
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<JwtOptions>>().Value);
 builder.Services.AddSingleton<ITokenGenerator, JwtTokenGenerator>();
@@ -44,6 +47,17 @@ if (builder.Environment.IsEnvironment("Testing"))
 else
 {
     builder.Services.AddScoped<IOutsideNewsReadRepository, SqlOutsideNewsReadRepository>();
+}
+
+var hasSql = !string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("Sql"));
+
+if (builder.Environment.IsEnvironment("Testing") || !hasSql)
+{
+    builder.Services.AddScoped<INewsRelatedReadRepository, NullNewsRelatedReadRepository>();
+}
+else
+{
+    builder.Services.AddScoped<INewsRelatedReadRepository, SqlNewsRelatedReadRepository>();
 }
 
 builder.Services.AddEndpointsApiExplorer();
