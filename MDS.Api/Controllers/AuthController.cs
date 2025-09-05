@@ -1,6 +1,7 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
+using MDS.Application.Contracts;
 using MDS.Application.Security;
 using MDS.Application.Security.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -44,12 +45,3 @@ public sealed class AuthController(ITokenService tokens, IOptions<JwtOptions> op
         return Ok(new { sub, claims = User.Claims.Select(c => new { c.Type, c.Value }) });
     }
 }
-
-public sealed record LoginRequest(
-    [Required(ErrorMessage = "Username is required.")]
-    string Username,
-    [Required(ErrorMessage = "Password is required.")]
-    string Password
-);
-
-public sealed record TokenResponse(string AccessToken, DateTime ExpiresAt);
