@@ -5,8 +5,9 @@ export interface HeadlineItem {
   title: string;
   description?: string;
   postDate?: string;
-  url: string;
+  url:string;
   tags?: string[];
+  imageUrl?: string;
 }
 
 @Component({

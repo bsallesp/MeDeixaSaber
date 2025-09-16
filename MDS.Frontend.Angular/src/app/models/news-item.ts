@@ -1,4 +1,3 @@
-// src/app/models/news-item.ts
 export interface NewsItem {
   id: string
   title: string
@@ -6,4 +5,5 @@ export interface NewsItem {
   description: string
   tags?: string[]
   url: string
+  imageUrl?: string
 }

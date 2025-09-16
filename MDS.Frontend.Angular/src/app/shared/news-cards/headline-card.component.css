@@ -29,3 +29,10 @@
   padding: 2px 8px;
   line-height: 1.2;
 }
+
+.headline__image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}

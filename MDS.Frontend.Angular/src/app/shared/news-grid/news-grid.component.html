@@ -1,6 +1,6 @@
 <div class="newsgrid">
   <section class="newsgrid__headline" *ngIf="headline() as h">
-    <app-headline-card [item]="{ title: h.title, description: h.description, postDate: h.postDate, url: h.url, tags: h.tags }" />
+    <app-headline-card [item]="{ title: h.title, description: h.description, postDate: h.postDate, url: h.url, tags: h.tags, imageUrl: h.imageUrl }" />
   </section>
 
   <section class="newsgrid__medium">
