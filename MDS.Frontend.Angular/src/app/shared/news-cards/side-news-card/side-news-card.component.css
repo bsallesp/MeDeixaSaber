@@ -7,7 +7,6 @@
   display: flex;
   height: 100%;
   background-color: var(--surface-2);
-  border: 1px solid var(--surface-border);
   border-radius: var(--space-xs);
   overflow: hidden;
   transition:

@@ -1,6 +1,6 @@
 @if (items.length > 0) {
   <div class="news-layout">
-    @for (item of items.slice(0, 5); track item.id; let i = $index) {
+    @for (item of items.slice(0, 4); track item.id; let i = $index) {
       <div [ngClass]="getCardClass(i)">
         @if (i === 0) {
           <app-headline-card [item]="item"></app-headline-card>

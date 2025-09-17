@@ -11,10 +11,6 @@
         <h3 class="card__title">{{ item.title }}</h3>
       </header>
 
-      @if (item.summary) {
-        <p class="card__summary">{{ item.summary }}</p>
-      }
-
       <footer class="card__footer">
         <span class="card__meta">{{ item.publishedAt | date:'mediumDate' }}</span>
 

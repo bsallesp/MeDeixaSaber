@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: var(--card-direction, column);
   background-color: var(--card-bg-color, var(--surface-2));
-  border: 1px solid var(--surface-border);
   border-radius: var(--space-xs);
   overflow: hidden;
   transition:
