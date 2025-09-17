@@ -118,7 +118,6 @@ img {
   align-items: center;
   height: 36px;
   padding: 0 12px;
-  border-radius: var(--p-border-radius, 10px);
   text-decoration: none;
   font-weight: 600;
   color: var(--p-surface-800);
@@ -126,17 +125,8 @@ img {
   transition: background-color 120ms, color 120ms, border-color 120ms, box-shadow 120ms;
 }
 
-.u-nav__link:hover {
-  background: color-mix(in oklab, var(--p-primary-color) 14%, transparent);
-  color: var(--p-primary-contrast-color, #fff);
-}
-.u-nav__link:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 2px var(--p-focus-ring-color, var(--p-primary-color));
-}
 .u-nav__link.is-active {
   background: var(--p-secondary-color);
-  color: var(--p-primary-contrast-color, #fff);
 }
 
 @media (max-width: 520px) {

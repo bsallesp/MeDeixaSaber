@@ -1,6 +1,4 @@
-@if (loading()) {
-  <div>Carregando notícia...</div>
-} @else if (error(); as e) {
+@if (error(); as e) {
   <div>
     <h2>Erro</h2>
     <pre>{{ e }}</pre>

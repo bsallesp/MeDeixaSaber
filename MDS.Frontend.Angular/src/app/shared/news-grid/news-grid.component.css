@@ -31,7 +31,6 @@
 }
 
 .tertiary-grid {
-  margin-top: var(--space-xl);
   display: grid;
   gap: var(--space-l);
   grid-template-columns: repeat(auto-fit, minmax(clamp(300px, 28vw, 380px), 1fr));

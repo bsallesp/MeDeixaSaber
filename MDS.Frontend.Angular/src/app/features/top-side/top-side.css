@@ -1,0 +1,12 @@
+.text {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 50px;
+}
+
+
+.logo-principal {
+  width: 300px;
+  height: auto;
+}

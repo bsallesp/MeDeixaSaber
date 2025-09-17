@@ -12,8 +12,6 @@
       </header>
 
       <footer class="card__footer">
-        <span class="card__meta">{{ item.publishedAt | date:'mediumDate' }}</span>
-
         @if (item.tags?.length) {
           <div class="card__tags">
             @for (tag of item.tags; track tag) {
