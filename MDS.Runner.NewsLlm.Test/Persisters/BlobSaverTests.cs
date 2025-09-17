@@ -101,11 +101,11 @@ namespace MDS.Tests.Persisters
         [Theory]
         [InlineData(null, "p")]
         [InlineData("", "p")]
-        [InlineData("   ", "p")]
+        [InlineData("    ", "p")]
         [InlineData("{}", null)]
         [InlineData("{}", "")]
-        [InlineData("{}", "   ")]
-        public async Task SaveJsonAsync_InvalidArgs_Throws(string json, string prefix)
+        [InlineData("{}", "    ")]
+        public async Task SaveJsonAsync_InvalidArgs_Throws(string? json, string? prefix)
         {
             var container = new FakeBlobContainerClient(new Uri("https://acct.blob.core.windows.net/c/"), "c");
             var sut = new BlobSaver(container);

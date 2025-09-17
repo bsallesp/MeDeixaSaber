@@ -25,7 +25,7 @@ public sealed class OpenAiNewsRewriter(
 
         var userObj = new
         {
-            instruction = "Reescreva a notícia mantendo fatos, acrescentando contexto quando claro, sem inventar. Copie a imagem quando houver.",
+            instruction = "Reescreva a notícia mantendo fatos, acrescentando contexto quando claro, sem inventar. Copie a imagem quando houver. O campo 'Content' deve ser detalhado, com um tamanho entre 400 e 600 palavras, emulando um estilo jornalístico completo.",
             original = new
             {
                 original.Title,
@@ -71,21 +71,34 @@ public sealed class OpenAiNewsRewriter(
         var httpResp = await _http.SendAsync(httpReq, ct);
         var respBody = await httpResp.Content.ReadAsStringAsync(ct);
         if (!httpResp.IsSuccessStatusCode)
+        {
             throw new InvalidOperationException($"Rewrite failed: {(int)httpResp.StatusCode} body={respBody}");
+        }
 
-        if (verbose) Console.WriteLine($"[JOUR status] {(int)httpResp.StatusCode} len={respBody.Length}");
+        if (verbose)
+        {
+            Console.WriteLine($"[JOUR status] {(int)httpResp.StatusCode} len={respBody.Length}");
+        }
 
         var text = ExtractContent(respBody);
-        if (verbose) Console.WriteLine($"[JOUR parse] payload_len={(text?.Length ?? 0)}");
+        if (verbose)
+        {
+            Console.WriteLine($"[JOUR parse] payload_len={(text?.Length ?? 0)}");
+        }
 
         if (string.IsNullOrWhiteSpace(text))
+        {
             throw new InvalidOperationException("Rewrite returned empty output");
+        }
 
         text = text.Replace("“", "\"").Replace("”", "\"").Replace("’", "'");
         text = text.Trim();
         var i = text.IndexOf('{');
         var j = text.LastIndexOf('}');
-        if (i >= 0 && j > i) text = text.Substring(i, j - i + 1);
+        if (i >= 0 && j > i)
+        {
+            text = text.Substring(i, j - i + 1);
+        }
 
         OutsideNews? news;
         try
@@ -98,14 +111,42 @@ public sealed class OpenAiNewsRewriter(
         }
 
         if (news is null)
+        {
             throw new InvalidOperationException("Rewrite returned null JSON");
+        }
 
-        if (string.IsNullOrWhiteSpace(news.Title)) news.Title = original.Title;
-        if (string.IsNullOrWhiteSpace(news.Source)) news.Source = string.IsNullOrWhiteSpace(original.Source) ? "(unknown)" : original.Source;
-        if (string.IsNullOrWhiteSpace(news.Url)) news.Url = original.Url;
-        if (string.IsNullOrWhiteSpace(news.ImageUrl)) news.ImageUrl = original.ImageUrl;
-        if (news.PublishedAt == default) news.PublishedAt = original.PublishedAt == default ? DateTime.UtcNow : original.PublishedAt;
-        if (news.CreatedAt == default) news.CreatedAt = DateTime.UtcNow;
+        const int minWords = 300;
+        var wordCount = news.Content?.Split(new[] { ' ', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length ?? 0;
+
+        if (wordCount < minWords)
+        {
+            throw new InvalidOperationException($"Rewrite failed: content is too short ({wordCount} words).");
+        }
+
+        if (string.IsNullOrWhiteSpace(news.Title))
+        {
+            news.Title = original.Title;
+        }
+        if (string.IsNullOrWhiteSpace(news.Source))
+        {
+            news.Source = string.IsNullOrWhiteSpace(original.Source) ? "(unknown)" : original.Source;
+        }
+        if (string.IsNullOrWhiteSpace(news.Url))
+        {
+            news.Url = original.Url;
+        }
+        if (string.IsNullOrWhiteSpace(news.ImageUrl))
+        {
+            news.ImageUrl = original.ImageUrl;
+        }
+        if (news.PublishedAt == default)
+        {
+            news.PublishedAt = original.PublishedAt == default ? DateTime.UtcNow : original.PublishedAt;
+        }
+        if (news.CreatedAt == default)
+        {
+            news.CreatedAt = DateTime.UtcNow;
+        }
 
         return news;
     }
@@ -119,13 +160,19 @@ public sealed class OpenAiNewsRewriter(
         {
             var choice = choices[0];
             if (choice.TryGetProperty("message", out var message) && message.TryGetProperty("content", out var contentEl) && contentEl.ValueKind == JsonValueKind.String)
+            {
                 return contentEl.GetString();
+            }
             if (choice.TryGetProperty("text", out var textEl) && textEl.ValueKind == JsonValueKind.String)
+            {
                 return textEl.GetString();
+            }
         }
 
         if (root.TryGetProperty("output_text", out var outputText) && outputText.ValueKind == JsonValueKind.String)
+        {
             return outputText.GetString();
+        }
 
         if (root.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Array && output.GetArrayLength() > 0)
         {

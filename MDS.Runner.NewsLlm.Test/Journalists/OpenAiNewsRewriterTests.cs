@@ -17,18 +17,21 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
 
         static HttpClient Client(params HttpResponseMessage[] responses) => new(new QueueHandler(responses));
 
-        static string PayloadJson(OutsideNews src, string createdAt = "2024-01-01T00:00:00Z") =>
-            $$"""
-            {
-              "Title": "Rewritten Title",
-              "Summary": "One line summary.",
-              "Content": "Body.",
-              "Source": "{{src.Source}}",
-              "Url": "{{src.Url}}",
-              "PublishedAt": "{{src.PublishedAt.ToUniversalTime():O}}",
-              "CreatedAt": "{{createdAt}}"
-            }
-            """;
+        static string PayloadJson(OutsideNews src, string createdAt = "2024-01-01T00:00:00Z")
+        {
+            var longContent = string.Join(" ", Enumerable.Repeat("palavra", 400));
+            return $$"""
+                   {
+                     "Title": "Rewritten Title",
+                     "Summary": "One line summary.",
+                     "Content": "{{longContent}}",
+                     "Source": "{{src.Source}}",
+                     "Url": "{{src.Url}}",
+                     "PublishedAt": "{{src.PublishedAt.ToUniversalTime():O}}",
+                     "CreatedAt": "{{createdAt}}"
+                   }
+                   """;
+        }
 
         static string AsOutputText(string json)
         {

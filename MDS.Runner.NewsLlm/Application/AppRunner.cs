@@ -9,7 +9,6 @@ public sealed class AppRunner(
     INewsOrgCollector collector,
     IOpenAiNewsRewriter rewriter,
     INewsMapper mapper,
-    IJournalist journalist,
     IArticleSink sink,
     IArticleRead reader) : IAppRunner
 {
@@ -24,29 +23,65 @@ public sealed class AppRunner(
     public async Task<int> RunAsync(CancellationToken ct = default)
     {
         var payload = await _collector.RunAsync("endpoint-newsapi-org-everything", ct);
-        if (payload is null) return 0;
+        if (payload is null)
+        {
+            return 0;
+        }
 
         var created = 0;
 
         foreach (var raw in payload.Articles ?? [])
         {
-            if (ct.IsCancellationRequested) break;
-            if (created >= DesiredNewArticles) break;
-            if (string.IsNullOrWhiteSpace(raw.Url)) continue;
+            if (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            if (created >= DesiredNewArticles)
+            {
+                break;
+            }
+            if (string.IsNullOrWhiteSpace(raw.Url))
+            {
+                continue;
+            }
 
             var exists = await _reader.ExistsByUrlAsync(raw.Url);
-            if (exists) continue;
+            if (exists)
+            {
+                continue;
+            }
 
             var mapped = _mapper.Map(raw);
-            var rewritten = await _rewriter.RewriteAsync(mapped, EditorialBias.Neutro, ct);
-            if (rewritten is null) continue;
+            if (mapped is null)
+            {
+                continue;
+            }
+
+            OutsideNews? rewritten;
+            try
+            {
+                rewritten = await _rewriter.RewriteAsync(mapped, EditorialBias.Neutro, ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"[APP WARN] Article skipped: {ex.Message} (URL: {mapped.Url})");
+                continue;
+            }
+            
+            if (rewritten is null)
+            {
+                continue;
+            }
 
             try
             {
                 await _sink.InsertAsync(rewritten);
                 created++;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[APP ERROR] Failed to save article: {ex.Message} (URL: {rewritten.Url})");
+            }
         }
 
         return created;

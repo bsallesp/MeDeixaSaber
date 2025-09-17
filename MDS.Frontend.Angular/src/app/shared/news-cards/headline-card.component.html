@@ -15,12 +15,8 @@
         <p class="card__summary">{{ item.summary }}</p>
       }
 
-      @if (item.description) {
-        <p class="card__description">{{ item.description }}</p>
-      }
-
       <footer class="card__footer">
-        <span class="card__meta">{{ item.postDate | date:'mediumDate' }}</span>
+        <span class="card__meta">{{ item.publishedAt | date:'mediumDate' }}</span>
 
         @if (item.tags?.length) {
           <div class="card__tags">

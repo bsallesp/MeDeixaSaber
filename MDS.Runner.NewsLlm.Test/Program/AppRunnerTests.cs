@@ -23,7 +23,6 @@ namespace MDS.Runner.NewsLlm.Test.Program
                 collector.Object,
                 Mock.Of<IOpenAiNewsRewriter>(),
                 Mock.Of<INewsMapper>(),
-                Mock.Of<IJournalist>(),
                 Mock.Of<IArticleSink>(),
                 Mock.Of<IArticleRead>());
 
@@ -62,7 +61,6 @@ namespace MDS.Runner.NewsLlm.Test.Program
                 collector.Object,
                 rewriter.Object,
                 mapper.Object,
-                Mock.Of<IJournalist>(),
                 sink.Object,
                 reader.Object);
 

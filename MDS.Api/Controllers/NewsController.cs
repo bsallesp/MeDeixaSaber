@@ -23,7 +23,7 @@ public sealed class NewsController(
     [ResponseCache(
         Duration = 60,
         Location = ResponseCacheLocation.Any,
-        VaryByQueryKeys = new[] { "pageSize" }
+        VaryByQueryKeys = ["pageSize"]
     )]
     public async Task<ActionResult<IReadOnlyList<OutsideNews>>> GetTop([FromQuery] int pageSize = 10, CancellationToken ct = default)
     {
@@ -52,9 +52,9 @@ public sealed class NewsController(
     [ResponseCache(
         Duration = 3600,
         Location = ResponseCacheLocation.Any,
-        VaryByQueryKeys = new[] { "id" }
+        VaryByQueryKeys = ["id"]
     )]
-    public async Task<ActionResult<OutsideNews>> GetById(string id, CancellationToken ct = default)
+    public async Task<ActionResult<object>> GetById(string id, CancellationToken ct = default)
     {
         var result = await getByIdHandler.Handle(new GetNewsByIdQuery(id), ct);
 
@@ -62,13 +62,26 @@ public sealed class NewsController(
         {
             return NotFound();
         }
-        
+
         var raw = $"{result.Id}:{result.CreatedAt.Ticks}";
         var etag = $"W/\"news-item-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..16]}\"";
         if (Request.Headers.TryGetValue("If-None-Match", out var inm) && inm.ToString().Contains(etag))
             return StatusCode(StatusCodes.Status304NotModified);
         Response.Headers.ETag = etag;
-        
-        return Ok(result);
+
+        var responseDto = new
+        {
+            result.Id,
+            result.Title,
+            result.Summary,
+            result.Content,
+            result.Source,
+            result.Url,
+            result.ImageUrl,
+            publishedAt = result.PublishedAt,
+            result.CreatedAt
+        };
+
+        return Ok(responseDto);
     }
 }

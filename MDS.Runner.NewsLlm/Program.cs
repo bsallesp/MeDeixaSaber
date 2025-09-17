@@ -28,7 +28,8 @@ internal static class Program
             new HttpClient { Timeout = TimeSpan.FromSeconds(60) });
 
         var openAiKey = await secretReader.GetAsync("openai-key");
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(300) };
+        using var http = new HttpClient();
+        http.Timeout = TimeSpan.FromSeconds(900);
 
         var disableRewrite = IsRewriteDisabled();
         IOpenAiNewsRewriter rewriter = disableRewrite
@@ -55,7 +56,7 @@ internal static class Program
         var blobSink = new BlobArticleSink(blob, "news-llm");
         IArticleSink sink = new CompositeArticleSink([dbSink, blobSink]);
 
-        IAppRunner app = new Application.AppRunner(collector, rewriter, mapper, journalist, sink, reader);
+        IAppRunner app = new Application.AppRunner(collector, rewriter, mapper, sink, reader);
 
         var count = await app.RunAsync();
 

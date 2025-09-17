@@ -8,8 +8,8 @@
 } @else if (item(); as article) {
   <article class="news-article">
     <header class="news-article__header">
-      <h1 class="news-article__title">{{ article.title }}</h1>
-      <p class="news-article__meta">Publicado em {{ article.postDate | date:'fullDate' }}</p>
+      <h1 class="news-article__title">{{ article.title }}!!</h1>
+      <p class="news-article__meta">Publicado em {{ article.createdAt | date:'fullDate' }}</p>
     </header>
 
     @if (article.imageUrl) {
@@ -23,7 +23,7 @@
     }
 
     <div class="news-article__content">
-      <p>{{ article.description }}</p>
+      <p>{{ article.content }}</p>
     </div>
 
     @if (article.tags?.length) {
