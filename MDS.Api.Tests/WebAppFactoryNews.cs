@@ -13,8 +13,9 @@ public sealed class WebAppFactoryNews : WebApplicationFactory<Program>
     {
         public Task<IReadOnlyList<OutsideNews>> Handle(GetTopNewsQuery request, CancellationToken ct = default)
         {
-            var n = request.PageSize <= 0 ? 0 : request.PageSize;
-            var now = DateTime.UtcNow;
+            var n = request.PageSize;
+            if (n <= 0) n = 0;
+
             var items = Enumerable.Range(1, n).Select(i => new OutsideNews
             {
                 Id = i,
@@ -24,13 +25,14 @@ public sealed class WebAppFactoryNews : WebApplicationFactory<Program>
                 Source = "test",
                 Url = $"https://example.com/{i}",
                 ImageUrl = null,
-                PublishedAt = now.AddMinutes(-i),
-                CreatedAt = now
+                PublishedAt = DateTime.UtcNow.AddMinutes(-i),
+                CreatedAt = DateTime.UtcNow
             }).ToList();
+
             return Task.FromResult<IReadOnlyList<OutsideNews>>(items);
         }
     }
-
+    
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
