@@ -36,10 +36,10 @@ const MdsPreset = definePreset(Aura, {
   },
 
   surface: {
-    0:  '{zinc.50}',
-    50: '{zinc.100}',
-    100:'{zinc.200}',
-    200:'{zinc.300}',
+    0:  '{white}',
+    50: '{sky.50}',
+    100:'{sky.100}',
+    200:'{sky.200}',
     300:'{zinc.400}',
     400:'{zinc.500}',
     500:'{zinc.600}',

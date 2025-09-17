@@ -1,0 +1,12 @@
+<article class="card">
+  <a [routerLink]="['/news', item.id]" class="card__link">
+    @if (item.imageUrl) {
+      <div class="card__media">
+        <img [src]="item.imageUrl" [alt]="item.title" class="card__image" />
+      </div>
+    }
+    <div class="card__body">
+      <h3 class="card__title">{{ item.title }}</h3>
+    </div>
+  </a>
+</article>

@@ -1,17 +1,21 @@
 @if (items.length > 0) {
   <div class="news-layout">
-    @for (item of items.slice(0, 7); track item.id; let i = $index) {
+    @for (item of items.slice(0, 5); track item.id; let i = $index) {
       <div [ngClass]="getCardClass(i)">
-        <app-headline-card [item]="item"></app-headline-card>
+        @if (i === 0) {
+          <app-headline-card [item]="item"></app-headline-card>
+        } @else {
+          <app-side-news-card [item]="item"></app-side-news-card>
+        }
       </div>
     }
   </div>
 }
 
-@if (items.length > 7) {
+@if (items.length > 5) {
   <div class="tertiary-grid">
-    @for (item of items.slice(7); track item.id) {
-      <app-headline-card [item]="item"></app-headline-card>
+    @for (item of items.slice(5); track item.id) {
+      <bottom-news-card [item]="item"></bottom-news-card>
     }
   </div>
 }
