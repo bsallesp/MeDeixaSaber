@@ -1,12 +1,35 @@
-<article class="headline">
-  <a *ngIf="item.imageUrl" class="headline__link" [href]="item.url" target="_blank" rel="noopener">
-    <img [src]="item.imageUrl" [alt]="item.title" class="headline__image">
-  </a>
+<article class="card">
+  <a [routerLink]="['/news', item.id]" class="card__link">
+    @if (item.imageUrl) {
+      <div class="card__media">
+        <img [src]="item.imageUrl" [alt]="item.title" class="card__image" />
+      </div>
+    }
 
-  <a class="headline__link" [href]="item.url" target="_blank" rel="noopener">
-    <h1 class="headline__title">{{ item.title }}</h1>
+    <div class="card__body">
+      <header class="card__header">
+        <h3 class="card__title">{{ item.title }}</h3>
+      </header>
+
+      @if (item.summary) {
+        <p class="card__summary">{{ item.summary }}</p>
+      }
+
+      @if (item.description) {
+        <p class="card__description">{{ item.description }}</p>
+      }
+
+      <footer class="card__footer">
+        <span class="card__meta">{{ item.postDate | date:'mediumDate' }}</span>
+
+        @if (item.tags?.length) {
+          <div class="card__tags">
+            @for (tag of item.tags; track tag) {
+              <span class="card__tag">{{ tag }}</span>
+            }
+          </div>
+        }
+      </footer>
+    </div>
   </a>
-  <p *ngIf="item.description" class="headline__desc">{{ item.description }}</p>
-  <div class="headline__meta">
-  </div>
 </article>

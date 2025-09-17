@@ -1,33 +1,96 @@
 :root {
-  --p-font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --p-text-color: #1f2937;
-  --p-text-secondary-color: #374151;
+  --color-brand-hue: 250;
+  --color-accent-hue: 300;
+
+  --surface-1: oklch(98% 0.01 var(--color-brand-hue));
+  --surface-2: oklch(94% 0.02 var(--color-brand-hue));
+  --surface-3: oklch(90% 0.03 var(--color-brand-hue));
+  --surface-border: oklch(85% 0.03 var(--color-brand-hue));
+
+  --text-1: oklch(25% 0.05 var(--color-brand-hue));
+  --text-2: oklch(45% 0.05 var(--color-brand-hue));
+
+  --brand: oklch(55% 0.2 var(--color-brand-hue));
+  --accent: oklch(55% 0.2 var(--color-accent-hue));
+
+  --space-3xs: clamp(0.31rem, 0.31rem + 0vw, 0.31rem);
+  --space-2xs: clamp(0.56rem, 0.52rem + 0.21vw, 0.69rem);
+  --space-xs: clamp(0.88rem, 0.83rem + 0.21vw, 1.00rem);
+  --space-s: clamp(1.13rem, 1.04rem + 0.43vw, 1.38rem);
+  --space-m: clamp(1.69rem, 1.56rem + 0.64vw, 2.06rem);
+  --space-l: clamp(2.25rem, 2.08rem + 0.85vw, 2.75rem);
+  --space-xl: clamp(3.38rem, 3.13rem + 1.28vw, 4.13rem);
+  --space-2xl: clamp(4.50rem, 4.16rem + 1.71vw, 5.50rem);
+  --space-3xl: clamp(6.75rem, 6.24rem + 2.56vw, 8.25rem);
+
+  --font-size-sm: clamp(0.8rem, 0.71rem + 0.43vw, 1.00rem);
+  --font-size-base: clamp(1.00rem, 0.88rem + 0.64vw, 1.33rem);
+  --font-size-md: clamp(1.25rem, 1.08rem + 0.85vw, 1.78rem);
+  --font-size-lg: clamp(1.56rem, 1.33rem + 1.17vw, 2.37rem);
+  --font-size-xl: clamp(1.95rem, 1.63rem + 1.62vw, 3.16rem);
+  --font-size-xxl: clamp(2.44rem, 1.99rem + 2.25vw, 4.21rem);
+
+  --font-sans: 'Segoe UI', system-ui, sans-serif;
+  --font-serif: Georgia, serif;
 }
 
-/* Base tipografia + reset leve */
-html, body, .p-component {
-  font-family: var(--p-font-family), monospace;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-1: oklch(20% 0.01 var(--color-brand-hue));
+    --surface-2: oklch(25% 0.02 var(--color-brand-hue));
+    --surface-3: oklch(30% 0.03 var(--color-brand-hue));
+    --surface-border: oklch(35% 0.03 var(--color-brand-hue));
+
+    --text-1: oklch(95% 0.05 var(--color-brand-hue));
+    --text-2: oklch(75% 0.05 var(--color-brand-hue));
+  }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
   margin: 0;
-  padding: 0;
-}
-html { color-scheme: light; }
-
-/* Cores globais puxando tokens do tema */
-html, body {
-  background: var(--p-surface-0, #f7f7f8);
-  color: var(--p-surface-800, #1f2937);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  color: var(--text-1);
+  background-color: var(--surface-1);
+  line-height: 1.6;
 }
 
-/* ===== Utilitários MDS (consomem APENAS tokens do tema) ===== */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-block-start: var(--space-l);
+  margin-block-end: var(--space-s);
+}
 
-/* container responsivo */
+h1 { font-size: var(--font-size-xxl); }
+h2 { font-size: var(--font-size-xl); }
+h3 { font-size: var(--font-size-lg); }
+
+a {
+  color: var(--brand);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
 .u-container {
   max-width: 1100px;
   margin-inline: auto;
   padding-inline: 16px;
 }
 
-/* header “shell” */
 .u-header {
   position: sticky;
   top: 0;
@@ -36,14 +99,12 @@ html, body {
   border-bottom: 1px solid var(--p-content-border-color, var(--p-surface-200));
 }
 
-/* nav básico horizontal */
 .u-nav {
   min-height: 56px;
   display: flex;
   align-items: center;
 }
 
-/* lista horizontal */
 .u-nav__list {
   display: flex;
   gap: 8px;
@@ -52,7 +113,6 @@ html, body {
   margin: 0;
 }
 
-/* link de navegação: SEM cores hardcoded; só tokens */
 .u-nav__link {
   display: inline-flex;
   align-items: center;
@@ -66,7 +126,6 @@ html, body {
   transition: background-color 120ms, color 120ms, border-color 120ms, box-shadow 120ms;
 }
 
-/* hover/focus/active sempre via tokens */
 .u-nav__link:hover {
   background: color-mix(in oklab, var(--p-primary-color) 14%, transparent);
   color: var(--p-primary-contrast-color, #fff);
@@ -78,10 +137,8 @@ html, body {
 .u-nav__link.is-active {
   background: var(--p-secondary-color);
   color: var(--p-primary-contrast-color, #fff);
-  border-color: color-mix(in oklab, var(--p-primary-color) 70%, transparent);
 }
 
-/* responsivo */
 @media (max-width: 520px) {
   .u-nav { min-height: auto; padding-block: 8px; }
   .u-nav__list { flex-wrap: wrap; }

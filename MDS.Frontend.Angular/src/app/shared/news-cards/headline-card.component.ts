@@ -1,22 +1,15 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-export interface HeadlineItem {
-  title: string;
-  description?: string;
-  postDate?: string;
-  url:string;
-  tags?: string[];
-  imageUrl?: string;
-}
+import { NewsItem } from '../../models/news-item';
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-headline-card',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './headline-card.component.html',
   styleUrl: './headline-card.component.css'
 })
 export class HeadlineCardComponent {
-  @Input() item!: HeadlineItem;
+  @Input({ required: true }) item!: NewsItem;
 }

@@ -33,6 +33,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>>, GetTopNewsHandler>();
+builder.Services.AddScoped<IQueryHandler<GetNewsByIdQuery, OutsideNews?>, GetNewsByIdHandler>();
 builder.Services.AddScoped<IQueryHandler<GetLatestRelatedNewsQuery, IReadOnlyList<NewsRow>>, GetLatestRelatedNewsHandler>();
 
 builder.Services.AddSingleton<IClock, SystemClock>();

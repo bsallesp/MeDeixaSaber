@@ -1,0 +1,39 @@
+@if (loading()) {
+  <div>Carregando notícia...</div>
+} @else if (error(); as e) {
+  <div>
+    <h2>Erro</h2>
+    <pre>{{ e }}</pre>
+  </div>
+} @else if (item(); as article) {
+  <article class="news-article">
+    <header class="news-article__header">
+      <h1 class="news-article__title">{{ article.title }}</h1>
+      <p class="news-article__meta">Publicado em {{ article.postDate | date:'fullDate' }}</p>
+    </header>
+
+    @if (article.imageUrl) {
+      <figure class="news-article__figure">
+        <img [src]="article.imageUrl" [alt]="article.title" class="news-article__image" />
+      </figure>
+    }
+
+    @if (article.summary) {
+      <p class="news-article__summary">{{ article.summary }}</p>
+    }
+
+    <div class="news-article__content">
+      <p>{{ article.description }}</p>
+    </div>
+
+    @if (article.tags?.length) {
+      <footer class="news-article__footer">
+        <div class="card__tags">
+          @for (tag of article.tags; track tag) {
+            <span class="card__tag">{{ tag }}</span>
+          }
+        </div>
+      </footer>
+    }
+  </article>
+}

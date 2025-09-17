@@ -1,4 +1,9 @@
-<div *ngIf="loading()">carregando...</div>
-<div *ngIf="error() as e"><pre>{{ e }}</pre></div>
-
-<app-news-grid *ngIf="items() as list" [items]="list"></app-news-grid>
+@if (loading()) {
+  <div>carregando...</div>
+} @else if (error(); as e) {
+  <div>
+    <pre>{{ e }}</pre>
+  </div>
+} @else if (items(); as list) {
+  <app-news-grid [items]="list"></app-news-grid>
+}

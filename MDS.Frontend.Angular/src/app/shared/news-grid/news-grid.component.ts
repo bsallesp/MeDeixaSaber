@@ -1,24 +1,19 @@
-import { Component, Input, computed, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { HeadlineCardComponent } from '../news-cards/headline-card.component';
-import { MediumCardComponent } from '../news-cards/medium-card.component';
-import { SmallCardComponent } from '../news-cards/small-card.component';
+import { Component, Input } from '@angular/core';
+import { CommonModule, NgClass } from '@angular/common';
 import { NewsItem } from '../../models/news-item';
+import { HeadlineCardComponent } from '../news-cards/headline-card.component';
 
 @Component({
   selector: 'app-news-grid',
   standalone: true,
-  imports: [CommonModule, HeadlineCardComponent, MediumCardComponent, SmallCardComponent],
+  imports: [CommonModule, NgClass, HeadlineCardComponent],
   templateUrl: './news-grid.component.html',
   styleUrl: './news-grid.component.css'
 })
 export class NewsGridComponent {
-  @Input() set items(value: NewsItem[] | null) {
-    this._items.set(value ?? []);
-  }
-  private _items = signal<NewsItem[]>([]);
+  @Input() items: NewsItem[] = [];
 
-  headline = computed(() => this._items()[0]);
-  medium = computed(() => this._items().slice(1, 5));
-  small = computed(() => this._items().slice(5));
+  public getCardClass(index: number): string {
+    return `card-position-${index}`;
+  }
 }

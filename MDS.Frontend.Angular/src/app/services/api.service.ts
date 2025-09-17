@@ -12,6 +12,10 @@ export class ApiService {
     return this.http.get<NewsItem[]>(`/api/news/top?pageSize=${take}`)
   }
 
+  getNewsItem(id: string): Observable<NewsItem> {
+    return this.http.get<NewsItem>(`/api/news/${id}`);
+  }
+
   getClassifiedsTop(take = 20, skip = 0): Observable<ClassifiedItem[]> {
     return this.http.get<ClassifiedItem[]>(`/api/classifieds/top?take=${take}&skip=${skip}`)
   }

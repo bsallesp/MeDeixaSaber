@@ -18,5 +18,21 @@ public sealed class SqlOutsideNewsReadRepository(IConfiguration cfg) : IOutsideN
                 cancellationToken: ct));
         return rows.AsList();
     }
-}
 
+    public async Task<OutsideNews?> GetByIdAsync(string id, CancellationToken ct = default)
+    {
+        if (!int.TryParse(id, out var newsId))
+        {
+            return null;
+        }
+
+        await using var cn = new SqlConnection(cfg.GetConnectionString("Default"));
+        const string sql = "SELECT Id, Title, Summary, Content, Source, Url, ImageUrl, PublishedAt, CreatedAt FROM dbo.News WHERE Id = @Id";
+        
+        var result = await cn.QuerySingleOrDefaultAsync<OutsideNews>(
+            new CommandDefinition(sql, new { Id = newsId }, cancellationToken: ct)
+        );
+        
+        return result;
+    }
+}

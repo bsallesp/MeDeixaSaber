@@ -3,6 +3,7 @@ export interface NewsItem {
   title: string
   postDate: string
   description: string
+  summary?: string
   tags?: string[]
   url: string
   imageUrl?: string

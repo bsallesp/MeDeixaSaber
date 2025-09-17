@@ -11,7 +11,9 @@ namespace MDS.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class NewsController(IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>> handler) : ControllerBase
+public sealed class NewsController(
+    IQueryHandler<GetTopNewsQuery, IReadOnlyList<OutsideNews>> getTopHandler,
+    IQueryHandler<GetNewsByIdQuery, OutsideNews?> getByIdHandler) : ControllerBase
 {
     private const int MaxPageSize = 50;
 
@@ -19,7 +21,7 @@ public sealed class NewsController(IQueryHandler<GetTopNewsQuery, IReadOnlyList<
     [HttpGet("top")]
     [ServiceFilter(typeof(RequirePowFilter))]
     [ResponseCache(
-        Duration = 60, 
+        Duration = 60,
         Location = ResponseCacheLocation.Any,
         VaryByQueryKeys = new[] { "pageSize" }
     )]
@@ -29,7 +31,7 @@ public sealed class NewsController(IQueryHandler<GetTopNewsQuery, IReadOnlyList<
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
         try
         {
-            var result = await handler.Handle(new GetTopNewsQuery(pageSize), ct);
+            var result = await getTopHandler.Handle(new GetTopNewsQuery(pageSize), ct);
             var latest = result.Count == 0 ? DateTime.UnixEpoch : result.Max(x => x.CreatedAt);
             var raw = $"{latest.Ticks}:{result.Count}";
             var etag = $"W/\"news-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..16]}\"";
@@ -43,5 +45,30 @@ public sealed class NewsController(IQueryHandler<GetTopNewsQuery, IReadOnlyList<
         {
             return StatusCode(StatusCodes.Status500InternalServerError);
         }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{id}")]
+    [ResponseCache(
+        Duration = 3600,
+        Location = ResponseCacheLocation.Any,
+        VaryByQueryKeys = new[] { "id" }
+    )]
+    public async Task<ActionResult<OutsideNews>> GetById(string id, CancellationToken ct = default)
+    {
+        var result = await getByIdHandler.Handle(new GetNewsByIdQuery(id), ct);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+        
+        var raw = $"{result.Id}:{result.CreatedAt.Ticks}";
+        var etag = $"W/\"news-item-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..16]}\"";
+        if (Request.Headers.TryGetValue("If-None-Match", out var inm) && inm.ToString().Contains(etag))
+            return StatusCode(StatusCodes.Status304NotModified);
+        Response.Headers.ETag = etag;
+        
+        return Ok(result);
     }
 }
