@@ -9,19 +9,59 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
     {
         private readonly IGeminiService _gemini;
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-        
-        private static readonly IReadOnlyList<string> ResearchSources = 
+
+        private static readonly IReadOnlyList<string> ResearchSources =
         [
+            // Jornais Brasileiros (Nacional e Internacional)
             "Globo",
             "UOL",
             "Estadao",
             "Folha de S.Paulo",
+            "BBC News Brasil",
+            "BandNews",
+            "CNN Brasil",
+            "Jovem Pan News",
+
+            // Fontes Americanas de Alto Nível
             "The New York Times",
             "The Guardian",
             "Reuters",
-            "BBC News Brasil"
+            "Associated Press",
+            "Bloomberg",
+            "The Wall Street Journal",
+
+            // Fontes Focadas em Imigração/Comunidade (EUA)
+            "Miami Herald",
+            "Boston Globe",
+            "Gazeta Brazilian News (FL)",
+            "Brazilian Times (NY/MA)",
+            "Immigration and Customs Enforcement (ICE) Releases",
+
+            // Fontes Governamentais/Especializadas
+            "Departamento de Estado dos EUA (State Department)",
+            "Serviço de Cidadania e Imigração dos EUA (USCIS)",
+            "Consulado-Geral do Brasil em Nova York",
+            "Itamaraty"
         ];
+
         private readonly Random _random = new();
+
+        private static readonly IReadOnlyList<(string CategoryName, string KeywordFocus)> CoreTopics =
+        [
+            // Ordem de Prioridade (Leves primeiro)
+            ("Comunidade & Cultura",
+                "novo restaurante brasileiro, festival cultural, brasileiro abre negócio, sucesso de artistas ou atletas brasileiros"),
+            ("Economia & Finanças",
+                "vagas de emprego EUA, setor abrindo vagas, câmbio dólar real impacto exterior, nova taxa de juros EUA, como abrir conta nos EUA"),
+            
+            // Ordem de Prioridade (Médios/Pesados depois)
+            ("Segurança & Direitos",
+                "golpes financeiros contra brasileiros no exterior, direitos do imigrante, alerta de segurança para brasileiros"),
+            ("Imigração & Leis",
+                "nova lei de visto, mudanças na imigração para brasileiros, residência permanente EUA"),
+            ("Política & Diplomacia",
+                "eleição EUA e brasileiros, consulado brasileiro novidades, política local impactando brasileiros")
+        ];
 
         public GeminiJournalistService(IGeminiService gemini)
         {
@@ -30,38 +70,50 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
 
         public async Task<List<string>> DiscoverTopicsAsync(CancellationToken ct = default)
         {
-            const string prompt = @"
-                Aja como um editor de um portal de notícias para a comunidade brasileira nos EUA.
-                Usando a busca, encontre 5 manchetes de notícias recentes e de alto impacto que sejam **DIRETAMENTE RELEVANTES** para brasileiros vivendo no exterior. 
-                
-                Priorize temas como: IMIGRAÇÃO, leis de visto, economia local (EUA/Outros países), cultura brasileira na diáspora, e alertas de segurança/golpes financeiros internacionais. **NÃO** inclua política ou geopolítica brasileira/mundial geral.
+            Console.WriteLine("[DISCOVERY] Starting parallel topic discovery based on core categories, aiming for diverse coverage...");
+            var discoveryTasks = new List<Task<string?>>();
 
-                É CRUCIAL que você retorne APENAS uma ARRAY JSON, sem comentários, sem markdown, sem introdução ou conclusão.
-                
-                Exemplo do formato esperado: [ ""Manchete 1"", ""Manchete 2"", ... ]
+            foreach (var (CategoryName, KeywordFocus) in CoreTopics)
+            {
+                // Cada tarefa tentará encontrar UM tópico para a sua categoria alvo.
+                discoveryTasks.Add(DiscoverTopicForCategoryAsync(CategoryName, KeywordFocus, ct));
+            }
 
-                Lembre-se: Use SOMENTE a ferramenta de busca ('google_search_retrieval') para responder.";
+            var results = await Task.WhenAll(discoveryTasks);
+            
+            // Filtramos apenas os resultados que não são nulos e não estão vazios
+            var headlines = results
+                .OfType<string>()
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .ToList();
+
+            Console.WriteLine($"[DISCOVERY OK] Extracted {headlines.Count} distinct topics for mandated coverage.");
+
+            return headlines;
+        }
+
+        private async Task<string?> DiscoverTopicForCategoryAsync(string categoryName, string keywordFocus,
+            CancellationToken ct)
+        {
+            var prompt = $@"
+            Aja como um editor de notícias focado na categoria '{categoryName}'.
+            Usando a busca, encontre **UMA** manchete RECENTE de alto impacto focada nos seguintes temas: {keywordFocus}.
+            A notícia deve ser relevante para brasileiros que moram no exterior.
+            
+            É CRUCIAL que você retorne APENAS a MANCHETE PURA (String), sem aspas, sem markdown, sem introdução ou conclusão.
+            
+            Manchete: ";
 
             var response = await _gemini.GenerateContentAsync(prompt, useSearch: true, ct);
-            if (response?.Candidates.FirstOrDefault()?.Content.Parts.FirstOrDefault()?.Text is not { } jsonRaw)
+            var text = response?.Candidates.FirstOrDefault()?.Content.Parts.FirstOrDefault()?.Text;
+
+            if (string.IsNullOrWhiteSpace(text))
             {
-                Console.WriteLine("[DISCOVERY ERROR] Failed to get response from Gemini.");
-                return [];
+                Console.WriteLine($"[DISCOVERY FAIL] Category '{categoryName}' returned empty result.");
+                return null;
             }
 
-            var payload = TrySliceFirstJsonArray(jsonRaw) ?? jsonRaw;
-            
-            try
-            {
-                var topics = JsonSerializer.Deserialize<List<string>>(payload, JsonOptions);
-                Console.WriteLine($"[DISCOVERY OK] Extracted {topics?.Count ?? 0} topics.");
-                return topics ?? [];
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[DISCOVERY JSON ERROR] Failed to deserialize topics: {ex.Message}. Raw: {payload.Substring(0, Math.Min(payload.Length, 200))}");
-                return [];
-            }
+            return text.Trim().Trim('"').Trim('\'');
         }
 
         public async Task<string?> ResearchTopicAsync(string topic, CancellationToken ct = default)
@@ -77,7 +129,7 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
 
             var response = await _gemini.GenerateContentAsync(prompt, useSearch: true, ct);
             var text = response?.Candidates.FirstOrDefault()?.Content.Parts.FirstOrDefault()?.Text;
-            
+
             Console.WriteLine($"[RESEARCH OK] Research data length: {text?.Length ?? 0}");
             return text;
         }
@@ -108,7 +160,7 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
                 {researchData}
                 ---
                 ";
-            
+
             var response = await _gemini.GenerateContentAsync(prompt, useSearch: false, ct);
             if (response?.Candidates.FirstOrDefault()?.Content.Parts.FirstOrDefault()?.Text is not { } jsonRaw)
             {
@@ -125,14 +177,15 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
             }
 
             var news = DeserializeToNews(payload);
-            
+
             if (news is null || string.IsNullOrWhiteSpace(news.Title) || string.IsNullOrWhiteSpace(news.Content))
             {
                 Console.WriteLine("[WRITING ERROR] Deserialization/Validation failed.");
-                Console.WriteLine($"[WRITING DEBUG] Payload preview: {payload.Substring(0, Math.Min(payload.Length, 200))}");
+                Console.WriteLine(
+                    $"[WRITING DEBUG] Payload preview: {payload.Substring(0, Math.Min(payload.Length, 200))}");
                 return null;
             }
-            
+
             if (news.PublishedAt == default) news.PublishedAt = DateTime.UtcNow;
             if (news.CreatedAt == default) news.CreatedAt = DateTime.UtcNow;
 
@@ -165,7 +218,9 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
                     }
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             return null;
         }
@@ -183,7 +238,7 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
             if (string.IsNullOrEmpty(s)) return null;
             s = s.Replace("```json", "", StringComparison.OrdinalIgnoreCase);
             s = s.Replace("```", "");
-            
+
             var start = s.IndexOf('[');
             var end = s.LastIndexOf(']');
             return (start >= 0 && end > start) ? s.Substring(start, end - start + 1) : null;
@@ -194,7 +249,7 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
             if (TryDeserialize<OutsideNews>(payload, out var one) && one is not null) return one;
             if (TryDeserialize<JsonElement>(payload, out var el) && el.ValueKind == JsonValueKind.Object)
                 return MapLooseObject(el);
-            
+
             return null;
         }
 
