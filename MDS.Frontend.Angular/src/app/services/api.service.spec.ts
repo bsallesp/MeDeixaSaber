@@ -1,9 +1,9 @@
-import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ApiService } from './api.service';
-import { NewsItem } from '../models/news-item';
-import { ClassifiedItem } from '../models/classified-item';
+import {TestBed} from '@angular/core/testing';
+import {provideHttpClient} from '@angular/common/http';
+import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {ApiService} from './api.service';
+import {NewsItem} from '../models/news-item';
+import {ClassifiedItem} from '../models/classified-item';
 
 describe('ApiService', () => {
   let service: ApiService;
@@ -30,7 +30,16 @@ describe('ApiService', () => {
   });
 
   it('getNewsTop should make a GET request to the correct URL', () => {
-    const mockNews: NewsItem[] = [{ id: '1', title: 'News 1', postDate: '2025-01-01', description: 'Desc', url: '' }];
+    // Linha 33 corrigida
+    const mockNews: NewsItem[] = [{
+      id: '1',
+      title: 'News 1',
+      publishedAt: '2025-01-01',
+      summary: 'Desc',
+      url: '',
+      createdAt: '',
+      content: ''
+    }];
     const take = 15;
 
     service.getNewsTop(take).subscribe(data => {
@@ -43,7 +52,15 @@ describe('ApiService', () => {
   });
 
   it('getNewsItem should make a GET request to the correct URL with id', () => {
-    const mockNewsItem: NewsItem = { id: '42', title: 'News 42', postDate: '2025-01-01', description: 'Desc', url: '' };
+    const mockNewsItem: NewsItem = {
+      id: '42',
+      title: 'News 42',
+      publishedAt: '2025-01-01',
+      summary: 'Desc',
+      url: '',
+      createdAt: '',
+      content: ''
+    };
     const newsId = '42';
 
     service.getNewsItem(newsId).subscribe(data => {
@@ -56,7 +73,13 @@ describe('ApiService', () => {
   });
 
   it('getClassifiedsTop should make a GET request to the correct URL with take and skip', () => {
-    const mockClassifieds: ClassifiedItem[] = [{ id: 'c1', title: 'Classified 1', postDate: '2025-01-01', description: 'Desc', url: '' }];
+    const mockClassifieds: ClassifiedItem[] = [{
+      id: 'c1',
+      title: 'Classified 1',
+      postDate: '2025-01-01',
+      description: 'Desc',
+      url: ''
+    }];
     const take = 10;
     const skip = 5;
 

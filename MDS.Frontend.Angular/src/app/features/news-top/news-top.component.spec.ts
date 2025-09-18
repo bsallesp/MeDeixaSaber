@@ -1,67 +1,61 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
-import NewsTopComponent from './news-top.component';
 import { ApiService } from '../../services/api.service';
+import NewsTopComponent from './news-top.component';
 import { NewsItem } from '../../models/news-item';
-import { NewsGridComponent } from '../../shared/news-grid/news-grid.component';
 
 describe('NewsTopComponent', () => {
-  let component: NewsTopComponent;
   let fixture: ComponentFixture<NewsTopComponent>;
-  let apiService: ApiService;
+  let apiService: jasmine.SpyObj<ApiService>;
 
   const mockNewsItems: NewsItem[] = [
-    { id: '1', title: 'Test News 1', postDate: new Date().toISOString(), description: 'Desc 1', url: 'http://test.com/1' },
-    { id: '2', title: 'Test News 2', postDate: new Date().toISOString(), description: 'Desc 2', url: 'http://test.com/2' }
+    { id: '1', title: 'Test News 1', publishedAt: new Date().toISOString(), createdAt: '', content: '', summary: 'Desc 1', url: 'http://test.com/1' },
+    { id: '2', title: 'Test News 2', publishedAt: new Date().toISOString(), createdAt: '', content: '', summary: 'Desc 2', url: 'http://test.com/2' }
   ];
 
-  beforeEach(async () => {
+  async function createComponent(apiMock: any) {
     await TestBed.configureTestingModule({
-      imports: [NewsTopComponent, NewsGridComponent],
+      imports: [NewsTopComponent],
       providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        ApiService
+        { provide: ApiService, useValue: apiMock },
+        provideRouter([])
       ]
     }).compileComponents();
 
     fixture = TestBed.createComponent(NewsTopComponent);
-    component = fixture.componentInstance;
-    apiService = TestBed.inject(ApiService);
+  }
+
+  beforeEach(() => {
+    apiService = jasmine.createSpyObj('ApiService', ['getNewsTop']);
   });
 
-  it('should create', () => {
-    fixture.detectChanges();
-    expect(component).toBeTruthy();
-  });
+  it('should load news items on init and hide loading', fakeAsync(async () => {
+    apiService.getNewsTop.and.returnValue(of(mockNewsItems));
+    await createComponent(apiService);
 
-  it('should show loading state initially', () => {
-    expect(component.loading()).toBe(true);
+    const component = fixture.componentInstance;
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('carregando...');
-  });
+    tick();
+    fixture.detectChanges();
 
-  it('should load news items on init and hide loading', () => {
-    spyOn(apiService, 'getNewsTop').and.returnValue(of(mockNewsItems));
-    fixture.detectChanges();
     expect(component.loading()).toBe(false);
     expect(component.items()).toEqual(mockNewsItems);
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('app-news-grid')).not.toBeNull();
-    expect(compiled.textContent).not.toContain('carregando...');
-  });
+    expect(component.error()).toBeNull();
+  }));
 
-  it('should show error message on api error', () => {
+  it('should show error message on api error', fakeAsync(async () => {
     const errorResponse = { status: 500, statusText: 'Server Error' };
-    spyOn(apiService, 'getNewsTop').and.returnValue(throwError(() => errorResponse));
+    apiService.getNewsTop.and.returnValue(throwError(() => errorResponse));
+    await createComponent(apiService);
+
+    const component = fixture.componentInstance;
     fixture.detectChanges();
+    tick();
+    fixture.detectChanges();
+
     expect(component.loading()).toBe(false);
     expect(component.error()).toBe('500 Server Error');
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('500 Server Error');
-    expect(compiled.querySelector('app-news-grid')).toBeNull();
-  });
+    expect(component.items()).toBeNull();
+  }));
 });

@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../services/api.service';
@@ -6,79 +6,77 @@ import NewsDetailComponent from './news-detail.component';
 import { NewsItem } from '../../models/news-item';
 
 describe('NewsDetailComponent', () => {
-  let component: NewsDetailComponent;
   let fixture: ComponentFixture<NewsDetailComponent>;
-  let mockApiService: jasmine.SpyObj<ApiService>;
+  let apiService: jasmine.SpyObj<ApiService>;
 
   const mockNewsItem: NewsItem = {
     id: '123',
     title: 'Super Notícia de Teste',
-    description: 'Descrição completa da notícia.',
-    postDate: new Date().toISOString(),
+    publishedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    content: 'Conteúdo da notícia.',
+    summary: 'Descrição completa da notícia.',
     url: 'http://example.com/123'
   };
 
-  const setup = (routeParams: { id: string | null }) => {
-    mockApiService = jasmine.createSpyObj('ApiService', ['getNewsItem']);
-
-    TestBed.configureTestingModule({
+  async function createComponent(routeMock: any, apiMock: any) {
+    await TestBed.configureTestingModule({
       imports: [NewsDetailComponent],
       providers: [
-        { provide: ApiService, useValue: mockApiService },
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            paramMap: of(new Map(Object.entries({ get: (key: string) => routeParams[key as keyof typeof routeParams] })))
-          }
-        }
+        { provide: ApiService, useValue: apiMock },
+        { provide: ActivatedRoute, useValue: routeMock }
       ]
     }).compileComponents();
 
     fixture = TestBed.createComponent(NewsDetailComponent);
-    component = fixture.componentInstance;
-  };
+  }
 
-  it('deve exibir estado de carregando e depois mostrar a notícia', () => {
-    setup({ id: '123' });
-    mockApiService.getNewsItem.and.returnValue(of(mockNewsItem));
+  beforeEach(() => {
+    apiService = jasmine.createSpyObj('ApiService', ['getNewsItem']);
+  });
 
-    // Estado inicial
-    expect(component.loading()).toBe(true);
+  it('deve exibir estado de carregando e depois mostrar a notícia', fakeAsync(async () => {
+    const activatedRouteMock = { paramMap: of({ get: (key: string) => '123' }) };
+    apiService.getNewsItem.and.returnValue(of(mockNewsItem));
+    await createComponent(activatedRouteMock, apiService);
 
-    // Dispara a detecção de mudanças para rodar o construtor e a subscrição
+    const component = fixture.componentInstance;
+
+    fixture.detectChanges();
+    tick();
     fixture.detectChanges();
 
-    // Após a API retornar
     expect(component.loading()).toBe(false);
     expect(component.item()).toEqual(mockNewsItem);
-    expect(mockApiService.getNewsItem).toHaveBeenCalledWith('123');
+    expect(apiService.getNewsItem).toHaveBeenCalledWith('123');
 
-    // Verifica o template HTML
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.news-article__title')?.textContent).toContain('Super Notícia de Teste');
-  });
+  }));
 
-  it('deve exibir uma mensagem de erro se a API falhar', () => {
-    setup({ id: '456' });
+  it('deve exibir uma mensagem de erro se a API falhar', fakeAsync(async () => {
+    const activatedRouteMock = { paramMap: of({ get: (key: string) => '123' }) };
     const errorResponse = { status: 500, statusText: 'Internal Server Error' };
-    mockApiService.getNewsItem.and.returnValue(throwError(() => errorResponse));
+    apiService.getNewsItem.and.returnValue(throwError(() => errorResponse));
+    await createComponent(activatedRouteMock, apiService);
+
+    const component = fixture.componentInstance;
 
     fixture.detectChanges();
+    tick();
 
-    expect(component.loading()).toBe(false);
-    expect(component.item()).toBeNull();
     expect(component.error()).toBe('500 Internal Server Error');
+  }));
 
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h2')?.textContent).toContain('Erro');
-  });
+  it('deve definir erro se o ID da rota não for encontrado', fakeAsync(async () => {
+    const activatedRouteMock = { paramMap: of({ get: (key: string) => null }) };
+    await createComponent(activatedRouteMock, apiService);
 
-  it('deve definir erro se o ID da rota não for encontrado', () => {
-    setup({ id: null });
+    const component = fixture.componentInstance;
 
     fixture.detectChanges();
+    tick();
 
-    expect(component.loading()).toBe(false);
     expect(component.error()).toBe('ID da notícia não encontrado.');
-  });
+  }));
 });

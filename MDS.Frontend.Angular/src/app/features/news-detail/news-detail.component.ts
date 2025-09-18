@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { switchMap } from 'rxjs/operators';
+import { EMPTY } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { NewsItem } from '../../models/news-item';
 
@@ -23,14 +24,14 @@ export default class NewsDetailComponent {
   constructor() {
     this.route.paramMap.pipe(
       switchMap(params => {
-      const id = params.get('id');
-      if (!id) {
-        this.error.set('ID da notícia não encontrado.');
-        this.loading.set(false);
-        throw new Error('ID is required');
-      }
-      return this.api.getNewsItem(id);
-    })
+        const id = params.get('id');
+        if (!id) {
+          this.error.set('ID da notícia não encontrado.');
+          this.loading.set(false);
+          return EMPTY;
+        }
+        return this.api.getNewsItem(id);
+      })
     ).subscribe({
       next: data => {
         this.item.set(data);

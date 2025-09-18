@@ -1,55 +1,58 @@
-import { TestBed, fakeAsync, flushMicrotasks, tick, flush } from "@angular/core/testing";
-import { HttpClient } from "@angular/common/http";
-import { provideHttpClient, withInterceptors } from "@angular/common/http";
-import { provideHttpClientTesting, HttpTestingController } from "@angular/common/http/testing";
-import { powInterceptor } from "./pow.interceptor";
+import { fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { powInterceptor } from './pow.interceptor';
+import { PowService } from '../services/pow.service';
 
-function installCryptoPowMock() {
-  const mock = {
-    getRandomValues: (arr: Uint8Array) => { for (let i = 0; i < arr.length; i++) arr[i] = 1; return arr; },
-    subtle: {
-      digest: async () => { const buf = new ArrayBuffer(32); new Uint8Array(buf).fill(0); return buf; }
-    }
-  } as any;
-  spyOnProperty(window as any, "crypto", "get").and.returnValue(mock);
-}
-
-describe("powInterceptor", () => {
+describe('powInterceptor', () => {
   let http: HttpClient;
-  let ctrl: HttpTestingController;
+  let httpTestingController: HttpTestingController;
+  let powServiceSpy: jasmine.SpyObj<PowService>;
 
   beforeEach(() => {
-    TestBed.resetTestingModule();
-    installCryptoPowMock();
+    powServiceSpy = jasmine.createSpyObj('PowService', ['mintPow']);
+
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(withInterceptors([powInterceptor] as any)),
-        provideHttpClientTesting()
-      ]
+        provideHttpClient(withInterceptors([powInterceptor])),
+        provideHttpClientTesting(),
+        { provide: PowService, useValue: powServiceSpy }
+      ],
     });
+
     http = TestBed.inject(HttpClient);
-    ctrl = TestBed.inject(HttpTestingController);
+    httpTestingController = TestBed.inject(HttpTestingController);
   });
 
   afterEach(() => {
-    ctrl.verify();
+    httpTestingController.verify();
   });
 
-  it("adiciona X-PoW em GET /api/news/top", fakeAsync(() => {
-    http.get("/api/news/top").subscribe();
-    flushMicrotasks(); tick(1); flush();
+  it('should add X-PoW header to /api/news/top requests', fakeAsync(() => {
+    const fakeToken = 'v1:fake-timestamp:fake-nonce';
+    powServiceSpy.mintPow.and.returnValue(Promise.resolve(fakeToken));
 
-    const req = ctrl.expectOne(r => r.url.endsWith("/api/news/top"));
-    expect(req.request.headers.has("X-PoW")).toBeTrue();
-    req.flush({});
+    const testUrl = '/api/news/top?pageSize=10';
+
+    http.get(testUrl).subscribe();
+
+    tick();
+
+    const req = httpTestingController.expectOne(testUrl);
+    req.flush([]);
+
+    expect(req.request.headers.has('X-PoW')).toBe(true);
+    expect(req.request.headers.get('X-PoW')).toBe(fakeToken);
   }));
 
-  it("nao altera POST /api/news/top", fakeAsync(() => {
-    http.post("/api/news/top", {}).subscribe();
-    flushMicrotasks(); tick(1); flush();
+  it('should NOT add X-PoW header to other requests', () => {
+    const testUrl = '/api/classifieds/top';
 
-    const req = ctrl.expectOne(r => r.url.endsWith("/api/news/top"));
-    expect(req.request.headers.has("X-PoW")).toBeFalse();
-    req.flush({});
-  }));
+    http.get(testUrl).subscribe();
+
+    const req = httpTestingController.expectOne(testUrl);
+    req.flush([]);
+
+    expect(req.request.headers.has('X-PoW')).toBe(false);
+  });
 });
