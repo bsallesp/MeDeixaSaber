@@ -2,8 +2,10 @@
 
 namespace MDS.Data.Tests.Repositories;
 
-public sealed class FakeNormalizer(string suffix) : ITitleNormalizationService
+public sealed class FakeNormalizer : ITitleNormalizationService
 {
-    readonly string _suffix = suffix;
-    public string Normalize(string title) => title + _suffix;
+    public string Normalize(string? title)
+    {
+        return title ?? string.Empty;
+    }
 }

@@ -2,10 +2,10 @@
 using System.Reflection;
 using System.Threading.Tasks;
 using FluentAssertions;
+using FluentAssertions.Specialized;
 using MDS.Data.Repositories;
 using MeDeixaSaber.Core.Models;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace MDS.Data.Tests.Repositories;
@@ -13,65 +13,61 @@ namespace MDS.Data.Tests.Repositories;
 public class ClassifiedsRepositoryTests
 {
     [Fact]
-    public async Task GetLatestAsync_WithNonPositiveTake_ShouldThrow()
+    public async Task InsertAsync_Throws_InvalidOperationException_On_SqlException_2627()
     {
-        var repo = new ClassifiedsRepository(
-            new FakeFactory(() => new ThrowingConnection(new Exception())),
-            NullLogger<ClassifiedsRepository>.Instance);
+        var sqlException = CreateSqlException(2627);
+        var throwingConnection = new ThrowingConnection(sqlException);
+        var factory = new FakeFactory(throwingConnection);
+        var repository = new ClassifiedsRepository(factory);
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => repo.GetLatestAsync(0));
+        var classified = new Classified { RefId = "123", Title = "Test" };
+
+        Func<Task> act = async () => await repository.InsertAsync(classified);
+        
+        ExceptionAssertions<InvalidOperationException> assertions = await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"Duplicate key violation for PostDate: {classified.PostDate}, Title: {classified.Title}");
+
+        assertions.WithInnerException<SqlException>();
     }
 
     [Fact]
-    public async Task InsertAsync_WithNull_ShouldThrow()
+    public async Task InsertAsync_Throws_ArgumentNullException_When_Entity_Is_Null()
     {
-        var repo = new ClassifiedsRepository(
-            new FakeFactory(() => new ThrowingConnection(new Exception())),
-            NullLogger<ClassifiedsRepository>.Instance);
+        var factory = new FakeFactory(new ThrowingConnection(new Exception()));
+        var repository = new ClassifiedsRepository(factory);
 
-        await Assert.ThrowsAsync<ArgumentNullException>(() => repo.InsertAsync(null!));
+        var act = async () => await repository.InsertAsync(null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task InsertAsync_DuplicateKey_ShouldThrowInvalidOperationWithMessage_AndKeepTitleUnchanged()
+    public async Task GetLatestAsync_Throws_ArgumentOutOfRangeException_When_Take_Is_Zero()
     {
-        var sqlEx = CreateSqlException(2627);
-        var repo = new ClassifiedsRepository(
-            new FakeFactory(() => new ThrowingConnection(sqlEx)),
-            NullLogger<ClassifiedsRepository>.Instance);
+        var factory = new FakeFactory(new ThrowingConnection(new Exception()));
+        var repository = new ClassifiedsRepository(factory);
 
-        var entity = new Classified { Title = "t", PostDate = DateTime.UtcNow };
-        var act = async () => await repo.InsertAsync(entity);
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(act);
-        ex.Message.Should().Contain("Duplicate key violation");
-        entity.Title.Should().Be("t");
+        var act = async () => await repository.GetLatestAsync(0);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
-
-    static SqlException CreateSqlException(int number)
+    
+    private static SqlException CreateSqlException(int number)
     {
-        var ctors = typeof(SqlError).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
-        SqlError error = null!;
-        foreach (var ctor in ctors)
-        {
-            var ps = ctor.GetParameters();
-            try
-            {
-                object?[] args = ps.Length switch
-                {
-                    7 => new object?[] { number, (byte)0, (byte)0, "server", "message", "proc", 0 },
-                    8 => new object?[] { number, (byte)0, (byte)0, "server", "message", "proc", 0, null },
-                    9 => new object?[] { number, (byte)0, (byte)0, "server", "message", "proc", "source", 0, null },
-                    _ => null!
-                };
-                if (args is null) continue;
-                error = (SqlError)ctor.Invoke(args);
-                break;
-            }
-            catch { }
-        }
-        var collection = Activator.CreateInstance(typeof(SqlErrorCollection), true)!;
-        typeof(SqlErrorCollection).GetMethod("Add", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(collection, new object[] { error });
-        var exc = typeof(SqlException).GetMethod("CreateException", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(SqlErrorCollection), typeof(string) }, null)!.Invoke(null, new[] { collection, "7.0.0" }) as SqlException;
-        return exc!;
+        var errorCollectionConstructor = typeof(SqlErrorCollection).GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null)!;
+        var errorCollection = errorCollectionConstructor.Invoke(null);
+
+        var errorConstructor = typeof(SqlError).GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null,
+            [typeof(int), typeof(byte), typeof(byte), typeof(string), typeof(string), typeof(string), typeof(int), typeof(Exception)], null)!;
+
+        var error = errorConstructor.Invoke(new object?[] { number, (byte)0, (byte)0, "server", "message", "proc", 100, null });
+        
+        var addMethod = typeof(SqlErrorCollection).GetMethod("Add", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        addMethod.Invoke(errorCollection, [error]);
+        
+        var exceptionConstructor = typeof(SqlException).GetMethod("CreateException", BindingFlags.NonPublic | BindingFlags.Static, null,
+            [typeof(SqlErrorCollection), typeof(string)], null)!;
+        
+        return (SqlException)exceptionConstructor.Invoke(null, [errorCollection, "1.0.0"])!;
     }
 }
