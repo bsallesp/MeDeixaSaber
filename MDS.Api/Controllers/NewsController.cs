@@ -32,7 +32,12 @@ public sealed class NewsController(
         try
         {
             var result = await getTopHandler.Handle(new GetTopNewsQuery(pageSize), ct);
-            var latest = result.Count == 0 ? DateTime.UnixEpoch : result.Max(x => x.CreatedAt);
+            
+            // CORREÇÃO 1: Usar '?.GetValueOrDefault()' ou '??' para tratar DateTime?
+            // Se CreatedAt é nulo, usamos DateTime.UnixEpoch como base.
+            var latest = result.Count == 0 ? DateTime.UnixEpoch : result.Max(x => x.CreatedAt.GetValueOrDefault(DateTime.UnixEpoch));
+            
+            // CORREÇÃO 2: Acessar Ticks de forma segura.
             var raw = $"{latest.Ticks}:{result.Count}";
             var etag = $"W/\"news-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..16]}\"";
             if (Request.Headers.TryGetValue("If-None-Match", out var inm) && inm.ToString().Contains(etag))
@@ -63,7 +68,11 @@ public sealed class NewsController(
             return NotFound();
         }
 
-        var raw = $"{result.Id}:{result.CreatedAt.Ticks}";
+        // CORREÇÃO 3: Acessar Ticks de forma segura.
+        // Se CreatedAt é nulo, Ticks será 0.
+        var createdTicks = result.CreatedAt?.Ticks ?? 0;
+        
+        var raw = $"{result.Id}:{createdTicks}";
         var etag = $"W/\"news-item-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..16]}\"";
         if (Request.Headers.TryGetValue("If-None-Match", out var inm) && inm.ToString().Contains(etag))
             return StatusCode(StatusCodes.Status304NotModified);

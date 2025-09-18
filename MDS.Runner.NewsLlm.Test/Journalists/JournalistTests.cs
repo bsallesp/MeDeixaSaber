@@ -5,6 +5,9 @@ using MDS.Runner.NewsLlm.Journalists.Interfaces;
 using MeDeixaSaber.Core.Models;
 using Moq;
 using Xunit;
+using System.Linq;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace MDS.Runner.NewsLlm.Test.Journalists
 {
@@ -15,7 +18,7 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
             Title = $"t{i}",
             Url = $"https://x/{i}",
             PublishedAt = DateTime.UtcNow.AddMinutes(-i),
-            Source = new NewsSourceDto { Name = "S" },
+            Source = new NewsSourceDto { Name = "S", Id = "s_id" },
             Description = $"d{i}",
             Content = $"c{i}"
         };
@@ -27,7 +30,9 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
             Content = $"rc{i}",
             Source = "S",
             Url = $"https://x/{i}",
-            PublishedAt = DateTime.UtcNow
+            PublishedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            Categories = new List<Category>()
         };
 
         [Fact]
@@ -70,7 +75,9 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
                         Url = $"https://x/{i}",
                         Content = "c",
                         Source = "S",
-                        PublishedAt = DateTime.UtcNow
+                        PublishedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        Categories = new List<Category>()
                     });
 
             var rewriter = new Mock<IOpenAiNewsRewriter>();
@@ -102,7 +109,9 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
                         Content = $"c{i}",
                         Source = "S",
                         Url = $"https://x/{i}",
-                        PublishedAt = DateTime.UtcNow
+                        PublishedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        Categories = new List<Category>()
                     });
 
             var rewriter = new Mock<IOpenAiNewsRewriter>();

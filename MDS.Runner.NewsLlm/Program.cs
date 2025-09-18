@@ -5,68 +5,54 @@ using MDS.Data.Repositories;
 using MDS.Runner.NewsLlm.Abstractions;
 using MDS.Runner.NewsLlm.Application;
 using MDS.Runner.NewsLlm.Collectors;
-using MDS.Runner.NewsLlm.Journalists;
-using MDS.Runner.NewsLlm.Journalists.Interfaces;
+using MDS.Runner.NewsLlm.Integrations.Gemini;
+using MDS.Runner.NewsLlm.Journalists.Gemini;
 using MDS.Runner.NewsLlm.Persisters;
 using Microsoft.Extensions.Logging;
 
-namespace MDS.Runner.NewsLlm;
-
-internal static class Program
+namespace MDS.Runner.NewsLlm
 {
-    private static async Task Main(string[] args)
+    internal static class Program
     {
-        Console.WriteLine("[APP start]");
-
-        const string vaultUrl = "https://web-app-vault-sql.vault.azure.net/";
-        var secretClient = new SecretClient(new Uri(vaultUrl), new DefaultAzureCredential());
-        var secretReader = new SecretReader(secretClient);
-
-        var collector = new NewsOrgCollector(
-            secretReader,
-            BlobSaver.Create("mdsprodstg04512", "news-org"),
-            new HttpClient { Timeout = TimeSpan.FromSeconds(60) });
-
-        var openAiKey = await secretReader.GetAsync("openai-key");
-        using var http = new HttpClient();
-        http.Timeout = TimeSpan.FromSeconds(900);
-
-        var disableRewrite = IsRewriteDisabled();
-        IOpenAiNewsRewriter rewriter = disableRewrite
-            ? new NoopNewsRewriter()
-            : new OpenAiNewsRewriter(http, openAiKey, model: "gpt-4o-mini", verbose: true);
-
-        var mapper = new NewsMapper();
-        var journalist = new Journalist(mapper, rewriter);
-
-        using var loggerFactory = LoggerFactory.Create(builder =>
+        private static async Task Main(string[] args)
         {
-            builder.AddConsole().SetMinimumLevel(LogLevel.Information);
-        });
-        var repoLogger = loggerFactory.CreateLogger<NewsRepository>();
+            Console.WriteLine("[APP start]");
 
-        var factory = new SqlConnectionFactory(
-            "mds-sqlserver-eastus2-prod01.database.windows.net",
-            "mds-sql-db-prod");
+            const string vaultUrl = "https://web-app-vault-sql.vault.azure.net/";
+            var secretClient = new SecretClient(new Uri(vaultUrl), new DefaultAzureCredential());
+            var secretReader = new SecretReader(secretClient);
 
-        var repo    = new NewsRepository(factory, repoLogger);
-        var reader  = new DbArticleRead(repo); // << para checar existência por URL
-        var dbSink  = new DbArticleSink(repo);
-        var blob    = BlobSaver.Create("mdsprodstg04512", "news-llm");
-        var blobSink = new BlobArticleSink(blob, "news-llm");
-        IArticleSink sink = new CompositeArticleSink([dbSink, blobSink]);
+            var geminiApiKey = await secretReader.GetAsync("gemini-api");
+            var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
 
-        IAppRunner app = new Application.AppRunner(collector, rewriter, mapper, sink, reader);
+            var geminiService = new GeminiService(http, geminiApiKey);
+            var geminiJournalist = new GeminiJournalistService(geminiService);
 
-        var count = await app.RunAsync();
+            using var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole().SetMinimumLevel(LogLevel.Information);
+            });
+            var repoLogger = loggerFactory.CreateLogger<NewsRepository>();
 
-        Console.WriteLine($"[APP] persisted_count={count}");
-        Console.WriteLine("[APP done]");
-    }
+            var factory = new SqlConnectionFactory(
+                "mds-sqlserver-eastus2-prod01.database.windows.net",
+                "mds-sql-db-prod");
 
-    private static bool IsRewriteDisabled()
-    {
-        var v = Environment.GetEnvironmentVariable("MDS_DISABLE_REWRITE");
-        return !string.IsNullOrWhiteSpace(v) && (v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase));
+            var repo = new NewsRepository(factory, repoLogger);
+            var reader = new DbArticleRead(repo);
+            var dbSink = new DbArticleSink(repo);
+            var blob = BlobSaver.Create("mdsprodstg04512", "news-llm");
+            var blobSink = new BlobArticleSink(blob, "news-llm");
+            IArticleSink sink = new CompositeArticleSink([dbSink, blobSink]);
+
+            IImageFinder imageFinder = new UnsplashImageFinder(http, secretReader);
+
+            IAppRunner app = new AppRunner(geminiJournalist, sink, reader, imageFinder);
+
+            var count = await app.RunAsync();
+
+            Console.WriteLine($"[APP] persisted_count={count}");
+            Console.WriteLine("[APP done]");
+        }
     }
 }

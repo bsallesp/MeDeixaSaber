@@ -1,10 +1,15 @@
-﻿using System.Data.Common;
+﻿using System;
 using System.Reflection;
+using System.Threading.Tasks;
+using FluentAssertions;
 using MDS.Data.Repositories;
 using MeDeixaSaber.Core.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using System.Linq;
+using System.Data.Common;
 
 namespace MDS.Data.Tests.Repositories;
 
@@ -35,15 +40,61 @@ public class NewsRepositoryTests
     public async Task InsertAsync_WhenConnectionThrows_ShouldPropagate()
     {
         var repo = CreateRepo(() => new ThrowingConnection(new Exception("insert fail")));
-        await Assert.ThrowsAsync<Exception>(() => repo.InsertAsync(new OutsideNews { Title = "t", Url = "u" }));
+        await Assert.ThrowsAsync<Exception>(() => repo.InsertAsync(new OutsideNews { 
+            Title = "t", 
+            Url = "u", 
+            Content = "dummy",
+            Source = "test",
+            PublishedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            Categories = new List<Category>() 
+        }));
     }
 
     [Fact]
     public async Task InsertManyAsync_WhenConnectionThrows_ShouldPropagate()
     {
         var repo = CreateRepo(() => new ThrowingConnection(new Exception("bulk fail")));
-        var list = new[] { new OutsideNews { Title = "a", Url = "b" } };
+        var list = new[] { 
+            new OutsideNews { 
+                Title = "a", 
+                Url = "b", 
+                Content = "dummy",
+                Source = "test",
+                PublishedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                Categories = new List<Category>() 
+            } 
+        };
         await Assert.ThrowsAsync<Exception>(() => repo.InsertManyAsync(list));
+    }
+
+    static SqlException CreateSqlException(int number)
+    {
+        var ctors = typeof(SqlError).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance);
+        SqlError error = null!;
+        foreach (var ctor in ctors)
+        {
+            var ps = ctor.GetParameters();
+            try
+            {
+                object?[] args = ps.Length switch
+                {
+                    7 => new object?[] { number, (byte)0, (byte)0, "server", "message", "proc", 0 },
+                    8 => new object?[] { number, (byte)0, (byte)0, "server", "message", "proc", 0, null },
+                    9 => new object?[] { number, (byte)0, (byte)0, "server", "message", "proc", "source", 0, null },
+                    _ => null!
+                };
+                if (args is null) continue;
+                error = (SqlError)ctor.Invoke(args)!;
+                break;
+            }
+            catch { }
+        }
+        var collection = Activator.CreateInstance(typeof(SqlErrorCollection), true)!;
+        typeof(SqlErrorCollection).GetMethod("Add", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(collection, new object[] { error });
+        var exc = typeof(SqlException).GetMethod("CreateException", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(SqlErrorCollection), typeof(string) }, null)!.Invoke(null, new[] { collection, "7.0.0" }) as SqlException;
+        return exc!;
     }
 
     static NewsRepository CreateRepo(Func<DbConnection> factory)
@@ -74,7 +125,7 @@ public class NewsRepositoryTests
     {
         if (!candidate.IsGenericType) return false;
         return candidate.GetGenericTypeDefinition() == typeof(ILogger<>) &&
-               candidate.GetGenericArguments()[0] == repoType;
+                       candidate.GetGenericArguments()[0] == repoType;
     }
 
     static object GetNullLogger(Type repoType)

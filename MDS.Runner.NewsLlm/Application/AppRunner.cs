@@ -1,89 +1,96 @@
 ﻿using MDS.Runner.NewsLlm.Abstractions;
-using MDS.Runner.NewsLlm.Collectors;
-using MDS.Runner.NewsLlm.Journalists.Interfaces;
+using MDS.Runner.NewsLlm.Journalists.Gemini;
 using MeDeixaSaber.Core.Models;
 
-namespace MDS.Runner.NewsLlm.Application;
-
-public sealed class AppRunner(
-    INewsOrgCollector collector,
-    IOpenAiNewsRewriter rewriter,
-    INewsMapper mapper,
-    IArticleSink sink,
-    IArticleRead reader) : IAppRunner
+namespace MDS.Runner.NewsLlm.Application
 {
-    private readonly INewsOrgCollector _collector = collector ?? throw new ArgumentNullException(nameof(collector));
-    private readonly IOpenAiNewsRewriter _rewriter = rewriter ?? throw new ArgumentNullException(nameof(rewriter));
-    private readonly INewsMapper _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
-    private readonly IArticleSink _sink = sink ?? throw new ArgumentNullException(nameof(sink));
-    private readonly IArticleRead _reader = reader ?? throw new ArgumentNullException(nameof(reader));
-
-    private const int DesiredNewArticles = 10;
-
-    public async Task<int> RunAsync(CancellationToken ct = default)
+    public sealed class AppRunner : IAppRunner
     {
-        var payload = await _collector.RunAsync("endpoint-newsapi-org-everything", ct);
-        if (payload is null)
+        private readonly IGeminiJournalistService _journalist;
+        private readonly IArticleSink _sink;
+        private readonly IArticleRead _reader;
+        private readonly IImageFinder _imageFinder;
+        private const int DesiredNewArticles = 5;
+        // Definir um limite mínimo de caracteres para a pesquisa (ex: 200) para evitar artigos baseados em 1 frase.
+        private const int MinResearchDataLength = 200; 
+
+        public AppRunner(
+            IGeminiJournalistService journalist,
+            IArticleSink sink,
+            IArticleRead reader,
+            IImageFinder imageFinder)
         {
-            return 0;
+            _journalist = journalist ?? throw new ArgumentNullException(nameof(journalist));
+            _sink = sink ?? throw new ArgumentNullException(nameof(sink));
+            _reader = reader ?? throw new ArgumentNullException(nameof(reader));
+            _imageFinder = imageFinder ?? throw new ArgumentNullException(nameof(imageFinder));
         }
 
-        var created = 0;
-
-        foreach (var raw in payload.Articles ?? [])
+        public async Task<int> RunAsync(CancellationToken ct = default)
         {
-            if (ct.IsCancellationRequested)
+            Console.WriteLine("[APP RUNNER] Starting 3-phase Gemini workflow...");
+
+            var headlines = await _journalist.DiscoverTopicsAsync(ct);
+            if (headlines is not { Count: > 0 })
             {
-                break;
-            }
-            if (created >= DesiredNewArticles)
-            {
-                break;
-            }
-            if (string.IsNullOrWhiteSpace(raw.Url))
-            {
-                continue;
+                Console.WriteLine("[APP RUNNER] Phase 1 (Discovery) did not return any topics.");
+                return 0;
             }
 
-            var exists = await _reader.ExistsByUrlAsync(raw.Url);
-            if (exists)
+            Console.WriteLine($"[APP RUNNER] Phase 1 discovered {headlines.Count} potential topics.");
+
+            var createdCount = 0;
+            foreach (var headline in headlines)
             {
-                continue;
+                if (ct.IsCancellationRequested || createdCount >= DesiredNewArticles)
+                {
+                    break;
+                }
+
+                Console.WriteLine($"[APP RUNNER] Starting Phase 2 (Research) for: \"{headline}\"");
+                var researchData = await _journalist.ResearchTopicAsync(headline, ct);
+                
+                if (string.IsNullOrWhiteSpace(researchData) || researchData.Length < MinResearchDataLength)
+                {
+                    Console.WriteLine($"[APP RUNNER] Phase 2 did not produce enough research data ({researchData?.Length ?? 0} chars) for \"{headline}\". Skipping.");
+                    continue;
+                }
+
+                Console.WriteLine($"[APP RUNNER] Starting Phase 3 (Writing) for: \"{headline}\"");
+                var finalArticle = await _journalist.WriteArticleAsync(researchData, ct);
+                if (finalArticle is null)
+                {
+                    Console.WriteLine($"[APP RUNNER] Phase 3 did not produce a valid article for \"{headline}\". Skipping.");
+                    continue;
+                }
+                
+                if (string.IsNullOrWhiteSpace(finalArticle.ImageUrl))
+                {
+                    Console.WriteLine($"[APP RUNNER] Searching for image for article: {finalArticle.Title}");
+                    var imageUrl = await _imageFinder.FindImageUrlAsync(finalArticle.Title, ct);
+                    finalArticle.ImageUrl = imageUrl;
+                }
+
+                var exists = await _reader.ExistsByUrlAsync(finalArticle.Url);
+                if (exists)
+                {
+                    Console.WriteLine($"[APP RUNNER] Article already exists, skipping: {finalArticle.Url}");
+                    continue;
+                }
+
+                try
+                {
+                    await _sink.InsertAsync(finalArticle);
+                    createdCount++;
+                    Console.WriteLine($"[APP RUNNER] Successfully created and saved article: {finalArticle.Title}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[APP RUNNER ERROR] Failed to save article: {ex.Message} (URL: {finalArticle.Url})");
+                }
             }
 
-            var mapped = _mapper.Map(raw);
-            if (mapped is null)
-            {
-                continue;
-            }
-
-            OutsideNews? rewritten;
-            try
-            {
-                rewritten = await _rewriter.RewriteAsync(mapped, EditorialBias.Neutro, ct);
-            }
-            catch (InvalidOperationException ex)
-            {
-                Console.WriteLine($"[APP WARN] Article skipped: {ex.Message} (URL: {mapped.Url})");
-                continue;
-            }
-            
-            if (rewritten is null)
-            {
-                continue;
-            }
-
-            try
-            {
-                await _sink.InsertAsync(rewritten);
-                created++;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[APP ERROR] Failed to save article: {ex.Message} (URL: {rewritten.Url})");
-            }
+            return createdCount;
         }
-
-        return created;
     }
 }

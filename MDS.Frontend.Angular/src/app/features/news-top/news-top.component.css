@@ -1,0 +1,43 @@
+.news-layout {
+  display: grid;
+  width: 100%;
+  gap: var(--space-l);
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-areas:
+    "hero hero side-a side-a"
+    "hero hero side-b side-b"
+    "hero hero side-c side-c"
+    "hero hero side-d side-d";
+}
+
+.card-position-0 {
+  grid-area: hero;
+}
+
+.card-position-1 {
+  grid-area: side-a;
+}
+
+.card-position-2 {
+  grid-area: side-b;
+}
+
+.card-position-3 {
+  grid-area: side-c;
+}
+
+.card-position-4 {
+  grid-area: side-d;
+}
+
+@media (max-width: 900px) {
+  .news-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "hero"
+      "side-a"
+      "side-b"
+      "side-c"
+      "side-d";
+  }
+}

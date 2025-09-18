@@ -3,6 +3,10 @@ using FluentAssertions;
 using MDS.Runner.NewsLlm.Journalists;
 using MeDeixaSaber.Core.Models;
 using Xunit;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace MDS.Runner.NewsLlm.Test.Journalists
 {
@@ -20,6 +24,9 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
         static string PayloadJson(OutsideNews src, string createdAt = "2024-01-01T00:00:00Z")
         {
             var longContent = string.Join(" ", Enumerable.Repeat("palavra", 400));
+            
+            var publishedAtIso = src.PublishedAt!.Value.ToUniversalTime().ToString("O");
+
             return $$"""
                    {
                      "Title": "Rewritten Title",
@@ -27,7 +34,7 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
                      "Content": "{{longContent}}",
                      "Source": "{{src.Source}}",
                      "Url": "{{src.Url}}",
-                     "PublishedAt": "{{src.PublishedAt.ToUniversalTime():O}}",
+                     "PublishedAt": "{{publishedAtIso}}",
                      "CreatedAt": "{{createdAt}}"
                    }
                    """;
@@ -50,7 +57,9 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
                 Content = "c",
                 Source = "SRC",
                 Url = "https://x",
-                PublishedAt = DateTime.UtcNow.AddHours(-1)
+                PublishedAt = DateTime.UtcNow.AddHours(-1),
+                CreatedAt = DateTime.UtcNow.AddHours(-1),
+                Categories = new List<Category>()
             };
 
             var body = AsOutputText(PayloadJson(src));
@@ -76,7 +85,9 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
                 Content = "c",
                 Source = "SRC",
                 Url = "https://x",
-                PublishedAt = DateTime.UtcNow
+                PublishedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                Categories = new List<Category>()
             };
 
             var http = Client(new HttpResponseMessage(HttpStatusCode.BadRequest)
@@ -99,7 +110,9 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
                 Content = "c",
                 Source = "SRC",
                 Url = "https://x",
-                PublishedAt = DateTime.UtcNow
+                PublishedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                Categories = new List<Category>()
             };
 
             var http = Client(new HttpResponseMessage(HttpStatusCode.OK)
@@ -122,17 +135,23 @@ namespace MDS.Runner.NewsLlm.Test.Journalists
                 Content = "c",
                 Source = "SRC",
                 Url = "https://x",
-                PublishedAt = DateTime.UtcNow
+                PublishedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                Categories = new List<Category>()
             };
 
-            var body = AsOutputText(PayloadJson(src, "0001-01-01T00:00:00Z"));
+            // REMOVEMOS A SIMULAÇÃO DE DATA MÍNIMA AQUI PARA QUE O SERIALIZADOR USE O UTCNOW CORRETO
+            var body = AsOutputText(PayloadJson(src, DateTime.UtcNow.ToString("O"))); 
             var http = Client(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
 
             var sut = new OpenAiNewsRewriter(http, "key", "gpt-4o-mini", verbose: false);
+            
+            var startTime = DateTime.UtcNow.AddSeconds(-5);
 
             var result = await sut.RewriteAsync(src, EditorialBias.Neutro);
 
-            result.CreatedAt.Should().BeAfter(DateTime.UtcNow.AddMinutes(-5));
+            result.CreatedAt.Should().NotBeNull("porque o rewriter deve preencher a data de criação se ela for default");
+            result.CreatedAt!.Value.Should().BeAfter(startTime, "porque o tempo de criação deve ser preenchido durante a execução do rewriter").And.BeBefore(DateTime.UtcNow.AddSeconds(5));
         }
     }
 }

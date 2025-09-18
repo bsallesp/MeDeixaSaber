@@ -4,6 +4,9 @@ using MDS.Runner.NewsLlm.Collectors;
 using MDS.Runner.NewsLlm.Persisters;
 using Moq;
 using Xunit;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Text;
 
 namespace MDS.Runner.NewsLlm.Test.Collectors
 {

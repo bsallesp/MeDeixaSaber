@@ -22,6 +22,10 @@ public sealed class OpenAiNewsRewriter(
 
         var sys = "Você é um redator jornalístico. Reescreva com linguagem clara e neutra. Responda apenas com um JSON único e válido, em uma linha, sem markdown.";
         var biasStr = bias.ToString();
+        
+        // CORREÇÃO: Usar ?.Value.ToUniversalTime() para lidar com DateTime?
+        var publishedAtUtc = original.PublishedAt?.ToUniversalTime().ToString("o") ?? DateTime.UtcNow.ToString("o");
+        var createdAtUtc = original.CreatedAt?.ToUniversalTime().ToString("o") ?? DateTime.UtcNow.ToString("o");
 
         var userObj = new
         {
@@ -34,8 +38,8 @@ public sealed class OpenAiNewsRewriter(
                 original.Source,
                 original.Url,
                 original.ImageUrl,
-                PublishedAt = original.PublishedAt.ToUniversalTime().ToString("o"),
-                CreatedAt = original.CreatedAt.ToUniversalTime().ToString("o")
+                PublishedAt = publishedAtUtc,
+                CreatedAt = createdAtUtc
             },
             bias = biasStr,
             output_contract = new
@@ -139,11 +143,12 @@ public sealed class OpenAiNewsRewriter(
         {
             news.ImageUrl = original.ImageUrl;
         }
-        if (news.PublishedAt == default)
+        // As datas foram tratadas na deserialização (DeserializeArticle), mas garantimos que não são nulas aqui
+        if (news.PublishedAt == null)
         {
-            news.PublishedAt = original.PublishedAt == default ? DateTime.UtcNow : original.PublishedAt;
+            news.PublishedAt = original.PublishedAt ?? DateTime.UtcNow;
         }
-        if (news.CreatedAt == default)
+        if (news.CreatedAt == null)
         {
             news.CreatedAt = DateTime.UtcNow;
         }

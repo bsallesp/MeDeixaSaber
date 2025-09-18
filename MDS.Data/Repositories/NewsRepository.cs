@@ -4,6 +4,8 @@ using MeDeixaSaber.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
+using System.Data;
+using System.Linq;
 
 namespace MDS.Data.Repositories;
 
@@ -39,9 +41,6 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
             new { take });
     }
 
-    /// <summary>
-    /// Verifica existência por URL na tabela dbo.News (onde persistimos os itens novos).
-    /// </summary>
     public async Task<bool> ExistsByUrlAsync(string url)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
@@ -57,15 +56,23 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
         ArgumentNullException.ThrowIfNull(entity);
 
         var sw = Stopwatch.StartNew();
+        
+        const string newsInsertSql = "dbo.News_UpsertByUrl";
+
+        const string categoryInsertSql = @"
+            INSERT INTO NewsCategories (NewsId, CategoryId) 
+            VALUES (@NewsId, @CategoryId)";
+        
+        await using var conn = await _factory.GetOpenConnectionAsync();
+        IDbTransaction transaction = null!;
+
         try
         {
+            transaction = conn.BeginTransaction();
             _logger.LogInformation("OutsideNews upsert start url={Url} title={Title}", entity.Url, entity.Title);
 
-            const int timeoutSeconds = 15; // evita travar indefinidamente
-            await using var conn = await _factory.GetOpenConnectionAsync();
-            var rows = await conn.ExecuteAsync(
-                // SP atualizada com @ImageUrl opcional — ok se a SP ignorar o param extra.
-                "exec dbo.News_UpsertByUrl @Title,@Summary,@Content,@Source,@Url,@PublishedAt,@ImageUrl",
+            var newsId = await conn.ExecuteScalarAsync<int>(
+                newsInsertSql,
                 new
                 {
                     entity.Title,
@@ -76,14 +83,36 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
                     entity.PublishedAt,
                     entity.ImageUrl
                 },
-                commandTimeout: timeoutSeconds);
+                commandType: CommandType.StoredProcedure,
+                transaction: transaction,
+                commandTimeout: 15);
+            
+            if (entity.Categories != null && entity.Categories.Any())
+            {
+                var categoryInserts = entity.Categories
+                    .Select(c => new { NewsId = newsId, CategoryId = c.Id })
+                    .ToList();
+
+                var rowsInserted = await conn.ExecuteAsync(
+                    categoryInsertSql,
+                    categoryInserts,
+                    transaction: transaction);
+                
+                _logger.LogInformation("OutsideNews categories inserted: {Count} rows.", rowsInserted);
+            }
+
+            transaction.Commit();
 
             sw.Stop();
             _logger.LogInformation("OutsideNews upsert ok url={Url} rows={Rows} ms={Elapsed}",
-                entity.Url, rows, sw.ElapsedMilliseconds);
+                entity.Url, newsId, sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
+            if (transaction != null)
+            {
+                transaction.Rollback();
+            }
             sw.Stop();
             _logger.LogError(ex, "OutsideNews upsert error url={Url} ms={Elapsed}", entity.Url, sw.ElapsedMilliseconds);
             throw;
