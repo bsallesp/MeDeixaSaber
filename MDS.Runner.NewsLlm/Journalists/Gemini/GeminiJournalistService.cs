@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MDS.Runner.NewsLlm.Integrations.Gemini;
 using MeDeixaSaber.Core.Models;
+using System.Text;
 
 namespace MDS.Runner.NewsLlm.Journalists.Gemini
 {
@@ -8,6 +9,19 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
     {
         private readonly IGeminiService _gemini;
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+        
+        private static readonly IReadOnlyList<string> ResearchSources = 
+        [
+            "Globo",
+            "UOL",
+            "Estadao",
+            "Folha de S.Paulo",
+            "The New York Times",
+            "The Guardian",
+            "Reuters",
+            "BBC News Brasil"
+        ];
+        private readonly Random _random = new();
 
         public GeminiJournalistService(IGeminiService gemini)
         {
@@ -18,188 +32,230 @@ namespace MDS.Runner.NewsLlm.Journalists.Gemini
         {
             const string prompt = @"
                 Aja como um editor de um portal de notícias para a comunidade brasileira nos EUA.
-                Usando a busca, encontre 5 manchetes de notícias recentes e de alto impacto. 
-                É CRÍTICO que você tente cobrir as 5 categorias a seguir, com uma manchete para cada:
-                1. Imigração & Leis: Foco em mudanças de vistos, regras de entrada e imigração.
-                2. Política & Diplomacia: Foco em relações EUA-Brasil e política americana com grande repercussão.
-                3. Economia & Finanças: Foco em taxas de juros, inflação, câmbio (Dólar/Real) e mercado de trabalho local.
-                4. Comunidade & Cultura: Foco em eventos culturais, leis estaduais em áreas com alta concentração de brasileiros (Flórida, MA, CA).
-                5. Segurança & Direitos: Foco em alertas de golpes, direitos do consumidor e direitos civis.
+                Usando a busca, encontre 5 manchetes de notícias recentes e de alto impacto que sejam **DIRETAMENTE RELEVANTES** para brasileiros vivendo no exterior. 
+                
+                Priorize temas como: IMIGRAÇÃO, leis de visto, economia local (EUA/Outros países), cultura brasileira na diáspora, e alertas de segurança/golpes financeiros internacionais. **NÃO** inclua política ou geopolítica brasileira/mundial geral.
 
-                Responda APENAS com uma lista de 5 strings em formato JSON, como neste exemplo: [""Manchete 1 (Imigração)"", ""Manchete 2 (Política)"", ""Manchete 3 (Economia)"", ""Manchete 4 (Comunidade)"", ""Manchete 5 (Segurança)""]";
+                É CRUCIAL que você retorne APENAS uma ARRAY JSON, sem comentários, sem markdown, sem introdução ou conclusão.
+                
+                Exemplo do formato esperado: [ ""Manchete 1"", ""Manchete 2"", ... ]
 
-            var response = await _gemini.GenerateContentAsync(prompt, true, ct);
-            var text = ExtractTextFromResponse(response);
-            if (string.IsNullOrWhiteSpace(text)) return [];
+                Lembre-se: Use SOMENTE a ferramenta de busca ('google_search_retrieval') para responder.";
+
+            var response = await _gemini.GenerateContentAsync(prompt, useSearch: true, ct);
+            if (response?.Candidates.FirstOrDefault()?.Content.Parts.FirstOrDefault()?.Text is not { } jsonRaw)
+            {
+                Console.WriteLine("[DISCOVERY ERROR] Failed to get response from Gemini.");
+                return [];
+            }
+
+            var payload = TrySliceFirstJsonArray(jsonRaw) ?? jsonRaw;
             
-            var cleanedText = CleanJsonString(text);
-
             try
             {
-                return JsonSerializer.Deserialize<List<string>>(cleanedText, JsonOptions) ?? [];
+                var topics = JsonSerializer.Deserialize<List<string>>(payload, JsonOptions);
+                Console.WriteLine($"[DISCOVERY OK] Extracted {topics?.Count ?? 0} topics.");
+                return topics ?? [];
             }
-            catch (JsonException ex)
+            catch (Exception ex)
             {
-                Console.WriteLine($"[GEMINI PARSE ERROR] Failed to parse headlines: {ex.Message}. Raw text: {text}");
+                Console.WriteLine($"[DISCOVERY JSON ERROR] Failed to deserialize topics: {ex.Message}. Raw: {payload.Substring(0, Math.Min(payload.Length, 200))}");
                 return [];
             }
         }
 
-        public async Task<string?> ResearchTopicAsync(string headline, CancellationToken ct = default)
+        public async Task<string?> ResearchTopicAsync(string topic, CancellationToken ct = default)
         {
-            var prompt = $@"
-                Pesquise detalhadamente a notícia: '{headline}'.
-                Reúna em formato de texto corrido todos os fatos essenciais, dados, números, pessoas envolvidas e contexto necessário para um jornalista escrever uma matéria completa sobre o assunto.
-                Seja factual e direto.";
+            var randomSource = ResearchSources[_random.Next(ResearchSources.Count)];
 
-            var response = await _gemini.GenerateContentAsync(prompt, true, ct);
-            return ExtractTextFromResponse(response);
+            var prompt = $@"
+                Faça uma pesquisa aprofundada sobre o tópico: ""{topic}"".
+                Use SOMENTE a ferramenta de busca ('google_search_retrieval').
+                Inclua termos de pesquisa que priorizem a fonte ""{randomSource}"".
+                Consolide a informação em um texto único, fluente e informativo em português (mínimo de 300 palavras). 
+                Não use introduções nem formatação (markdown, listas, cabeçalhos). Retorne APENAS o texto puro.";
+
+            var response = await _gemini.GenerateContentAsync(prompt, useSearch: true, ct);
+            var text = response?.Candidates.FirstOrDefault()?.Content.Parts.FirstOrDefault()?.Text;
+            
+            Console.WriteLine($"[RESEARCH OK] Research data length: {text?.Length ?? 0}");
+            return text;
         }
 
         public async Task<OutsideNews?> WriteArticleAsync(string researchData, CancellationToken ct = default)
         {
-            if (string.IsNullOrWhiteSpace(researchData) || researchData.Length < 200)
+            var prompt = $@"
+                Com base no texto de pesquisa a seguir, escreva um artigo de notícias completo em português. 
+                O tom deve ser jornalístico, objetivo e neutro.
+                A categoria principal deve ser a mais relevante (ex: Imigracao, Economia, Cultura).
+                O campo 'Content' deve ter entre 600 e 900 palavras.
+
+                Retorne APENAS um objeto JSON STICTO (sem markdown, sem comentários, sem aspas triplas), seguindo a estrutura:
+
+                {{
+                  ""Title"": ""<título atraente>"",
+                  ""Summary"": ""<resumo conciso, 1-2 frases>"",
+                  ""Content"": ""<conteúdo completo>"",
+                  ""Source"": ""Jornalista IA - Gemini"",
+                  ""Url"": ""urn:news:gemini:{Guid.NewGuid():N}"",
+                  ""PublishedAt"": ""{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}"",
+                  ""CreatedAt"": ""{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}"",
+                  ""Categories"": [ {{ ""Name"": ""<Categoria>"",""Id"":1 }} ]
+                }}
+                
+                TEXTO DE PESQUISA:
+                ---
+                {researchData}
+                ---
+                ";
+            
+            var response = await _gemini.GenerateContentAsync(prompt, useSearch: false, ct);
+            if (response?.Candidates.FirstOrDefault()?.Content.Parts.FirstOrDefault()?.Text is not { } jsonRaw)
             {
-                Console.WriteLine("[GEMINI WRITER] Recusando escrita: researchData muito curto ou vazio.");
+                Console.WriteLine("[WRITING ERROR] Failed to get response from Gemini.");
                 return null;
             }
 
-            var prompt = GetWritingPrompt(researchData);
-            
-            var response = await _gemini.GenerateContentAsync(prompt, false, ct);
-            var text = ExtractTextFromResponse(response);
-            
-            if (string.IsNullOrWhiteSpace(text)) return null;
+            var payload = ExtractTextPayload(jsonRaw) ?? TrySliceFirstJsonObject(jsonRaw);
 
-            var cleanedText = CleanJsonString(text);
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                Console.WriteLine("[WRITING ERROR] Extracted payload is empty or null.");
+                return null;
+            }
+
+            var news = DeserializeToNews(payload);
             
-            OutsideNews? article = null;
+            if (news is null || string.IsNullOrWhiteSpace(news.Title) || string.IsNullOrWhiteSpace(news.Content))
+            {
+                Console.WriteLine("[WRITING ERROR] Deserialization/Validation failed.");
+                Console.WriteLine($"[WRITING DEBUG] Payload preview: {payload.Substring(0, Math.Min(payload.Length, 200))}");
+                return null;
+            }
             
+            if (news.PublishedAt == default) news.PublishedAt = DateTime.UtcNow;
+            if (news.CreatedAt == default) news.CreatedAt = DateTime.UtcNow;
+
+            return news;
+        }
+
+        private static string? ExtractTextPayload(string responseJson)
+        {
             try
             {
-                article = DeserializeArticle(cleanedText);
-            }
-            catch (JsonException)
-            {
-                Console.WriteLine("[GEMINI WRITER] Primeira tentativa falhou (JSON inválido). Tentando correção...");
-                
-                var correctionPrompt = GetCorrectionPrompt(cleanedText);
-                var correctionResponse = await _gemini.GenerateContentAsync(correctionPrompt, false, ct);
-                var correctionText = ExtractTextFromResponse(correctionResponse);
-                
-                if (string.IsNullOrWhiteSpace(correctionText)) return null;
-
-                var finalCleanedText = CleanJsonString(correctionText);
-                
-                try
+                using var doc = JsonDocument.Parse(responseJson);
+                if (doc.RootElement.TryGetProperty("output_text", out var ot) && ot.ValueKind == JsonValueKind.String)
+                    return ot.GetString();
+                if (doc.RootElement.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Array)
                 {
-                    article = DeserializeArticle(finalCleanedText);
-                }
-                catch (JsonException ex)
-                {
-                    Console.WriteLine($"[GEMINI PARSE ERROR] A correção falhou: {ex.Message}. Texto Bruto: {finalCleanedText}");
-                    return null;
+                    foreach (var msg in output.EnumerateArray())
+                    {
+                        if (!msg.TryGetProperty("content", out var content) ||
+                            content.ValueKind != JsonValueKind.Array) continue;
+                        foreach (var part in content.EnumerateArray())
+                        {
+                            if (part.TryGetProperty("text", out var txt))
+                            {
+                                if (txt.ValueKind == JsonValueKind.String) return txt.GetString();
+                                if (txt.ValueKind == JsonValueKind.Object &&
+                                    txt.TryGetProperty("value", out var val) &&
+                                    val.ValueKind == JsonValueKind.String) return val.GetString();
+                            }
+                        }
+                    }
                 }
             }
+            catch { }
 
-            if (article != null && !string.IsNullOrWhiteSpace(article.Title) && !string.IsNullOrWhiteSpace(article.Url))
-            {
-                // Os valores CreatedAt e PublishedAt são definidos dentro de DeserializeArticle/Cleanup
-                return article;
-            }
             return null;
         }
 
-        private OutsideNews? DeserializeArticle(string cleanedText)
+        private static string? TrySliceFirstJsonObject(string s)
         {
-            var article = JsonSerializer.Deserialize<OutsideNews>(cleanedText, JsonOptions);
+            if (string.IsNullOrEmpty(s)) return null;
+            var start = s.IndexOf('{');
+            var end = s.LastIndexOf('}');
+            return (start >= 0 && end > start) ? s.Substring(start, end - start + 1) : null;
+        }
+
+        private static string? TrySliceFirstJsonArray(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return null;
+            s = s.Replace("```json", "", StringComparison.OrdinalIgnoreCase);
+            s = s.Replace("```", "");
             
-            if (article != null)
+            var start = s.IndexOf('[');
+            var end = s.LastIndexOf(']');
+            return (start >= 0 && end > start) ? s.Substring(start, end - start + 1) : null;
+        }
+
+        private static OutsideNews? DeserializeToNews(string payload)
+        {
+            if (TryDeserialize<OutsideNews>(payload, out var one) && one is not null) return one;
+            if (TryDeserialize<JsonElement>(payload, out var el) && el.ValueKind == JsonValueKind.Object)
+                return MapLooseObject(el);
+            
+            return null;
+        }
+
+        private static bool TryDeserialize<T>(string json, out T? value)
+        {
+            try
             {
-                if (article.CreatedAt == null) article.CreatedAt = DateTime.UtcNow;
-                if (article.PublishedAt == null) article.PublishedAt = DateTime.UtcNow;
-
-                using var doc = JsonDocument.Parse(cleanedText);
-                var categoryName = doc.RootElement.TryGetProperty("CategoryName", out var catEl) 
-                                   && catEl.ValueKind == JsonValueKind.String ? catEl.GetString() : null;
-
-                article.Categories.Clear(); 
-
-                if (!string.IsNullOrWhiteSpace(categoryName))
-                {
-                    var tempCategory = new Category { Name = categoryName, Slug = categoryName.ToLowerInvariant().Replace(' ', '-') };
-        
-                    article.Categories.Add(tempCategory);
-                }
+                value = JsonSerializer.Deserialize<T>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                return value is not null;
             }
-            return article;
+            catch
+            {
+                value = default;
+                return false;
+            }
         }
 
-        private static string GetWritingPrompt(string researchData) => $@"
-            Aja como um jornalista sênior escrevendo para um portal de notícias voltado a brasileiros que moram nos EUA. O tom deve ser útil e direto.
-            Com base estritamente nas informações pesquisadas abaixo, escreva uma matéría jornalística completa.
-            O campo 'Content' deve ter entre 400 e 600 palavras.
-            **REGRA CRÍTICA: Se as informações pesquisadas não forem suficientes para escrever um artigo completo, NÃO crie um artigo sobre a falta de dados. Simplesmente retorne um JSON com todos os campos nulos ou vazios. O campo 'ImageUrl' DEVE ser preenchido com null.**
-            **CATEGORIZAÇÃO: Com base no título, identifique a categoria principal (apenas UMA). O campo 'CategoryName' deve conter o nome exato de uma das categorias: 'Imigração & Leis', 'Política & Diplomacia', 'Economia & Finanças', 'Comunidade & Cultura', ou 'Segurança & Direitos'.**
-
-            INFORMAÇÕES PESQUISADAS:
-            ---
-            {researchData}
-            ---
-
-            Responda APENAS com um objeto JSON estrito, sem markdown, comentários ou texto extra, com a seguinte estrutura:
-            {{
-              ""Title"": ""string"",
-              ""Summary"": ""string|null"",
-              ""Content"": ""string"",
-              ""Source"": ""string (nome do principal veículo de notícias consultado)"",
-              ""Url"": ""string (URL da principal fonte consultado)"",
-              ""ImageUrl"": ""string|null"",
-              ""PublishedAt"": ""ISO-8601 UTC datetime"",
-              ""CreatedAt"": ""ISO-8601 UTC datetime"",
-              ""CategoryName"": ""string""
-            }}";
-
-        private static string GetCorrectionPrompt(string invalidJson) => $@"
-            O JSON fornecido está inválido e não pode ser desserializado. Sua ÚNICA tarefa é corrigir a sintaxe do JSON e garantir que ele seja estrito, sem markdown, comentários ou texto extra.
-
-            JSON Inválido:
-            ---
-            {invalidJson}
-            ---
-
-            Responda APENAS com o objeto JSON estrito e válido.
-        ";
-
-        private static string? ExtractTextFromResponse(Integrations.Gemini.Dto.GeminiResponseDto? response)
+        private static OutsideNews? MapLooseObject(JsonElement obj)
         {
-            return response?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
-        }
+            string GetStr(params string[] keys)
+            {
+                foreach (var k in keys)
+                    if (obj.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String)
+                        return v.GetString()!;
+                return string.Empty;
+            }
 
-        private static string CleanJsonString(string rawText)
-        {
-            if (string.IsNullOrWhiteSpace(rawText)) return rawText;
+            var title = GetStr("Title", "title");
+            var source = GetStr("Source", "source", "Outlet", "outlet");
+            var url = GetStr("Url", "url", "Link", "link");
+            var summary = GetStr("Summary", "summary");
+            var content = GetStr("Content", "content", "Body", "body");
+            var publishedAtStr = GetStr("PublishedAt", "publishedAt");
+            var createdAtStr = GetStr("CreatedAt", "createdAt");
 
-            var trimmed = rawText.Trim();
-            
-            var firstBracket = trimmed.IndexOf('[');
-            var firstBrace = trimmed.IndexOf('{');
-            
-            int startIndex;
-            if (firstBrace != -1) startIndex = firstBrace;
-            else if (firstBracket != -1) startIndex = firstBracket;
-            else startIndex = -1;
+            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(url))
+                return null;
 
-            if (startIndex == -1) return trimmed;
+            var publishedAt = DateTime.UtcNow;
+            if (!string.IsNullOrWhiteSpace(publishedAtStr) && DateTime.TryParse(publishedAtStr, out var p))
+                publishedAt = p.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(p, DateTimeKind.Utc)
+                    : p.ToUniversalTime();
 
-            var lastBracket = trimmed.LastIndexOf(']');
-            var lastBrace = trimmed.LastIndexOf('}');
-            
-            var endIndex = Math.Max(lastBracket, lastBrace);
-            
-            if (endIndex == -1 || endIndex < startIndex) return trimmed;
+            var createdAt = DateTime.UtcNow;
+            if (!string.IsNullOrWhiteSpace(createdAtStr) && DateTime.TryParse(createdAtStr, out var c))
+                createdAt = c.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(c, DateTimeKind.Utc)
+                    : c.ToUniversalTime();
 
-            return trimmed.Substring(startIndex, endIndex - startIndex + 1);
+            return new OutsideNews
+            {
+                Title = title,
+                Source = source,
+                Url = url,
+                Summary = string.IsNullOrWhiteSpace(summary) ? null : summary,
+                Content = string.IsNullOrWhiteSpace(content) ? "(sem conteúdo)" : content,
+                PublishedAt = publishedAt,
+                CreatedAt = createdAt
+            };
         }
     }
 }

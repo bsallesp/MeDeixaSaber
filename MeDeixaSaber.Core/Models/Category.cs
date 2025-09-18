@@ -1,8 +1,8 @@
-namespace MeDeixaSaber.Core.Models;
-
-public sealed class Category
+namespace MeDeixaSaber.Core.Models
 {
-    public int Id { get; set; }
-    public required string Name { get; set; }
-    public required string Slug { get; set; }
+    public sealed class Category
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Id { get; set; }
+    }
 }
