@@ -13,7 +13,8 @@ public sealed class SqlOutsideNewsReadRepository(IConfiguration cfg) : IOutsideN
         await using var cn = new SqlConnection(cfg.GetConnectionString("Default"));
         var rows = await cn.QueryAsync<OutsideNews>(
             new CommandDefinition(
-                "select top (@ps) Id, Title, Summary, Content, Source, Url, ImageUrl, PublishedAt, CreatedAt from dbo.News order by PublishedAt desc, Id desc",
+                // Altere 'PublishedAt' para 'CreatedAt' aqui
+                "select top (@ps) Id, Title, Summary, Content, Source, Url, ImageUrl, PublishedAt, CreatedAt from dbo.News order by CreatedAt desc, Id desc",
                 new { ps = pageSize },
                 cancellationToken: ct));
         return rows.AsList();
