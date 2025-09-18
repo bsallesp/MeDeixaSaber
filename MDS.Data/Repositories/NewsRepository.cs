@@ -57,9 +57,9 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
 
         var sw = Stopwatch.StartNew();
         
-        const string newsInsertSql = "dbo.News_UpsertByUrl";
-
-        const string categoryInsertSql = @"
+        const string newsUpsertSql = "dbo.News_UpsertByUrl";
+        const string categoryUpsertSql = "dbo.sp_UpsertCategory";
+        const string newsCategoryInsertSql = @"
             INSERT INTO NewsCategories (NewsId, CategoryId) 
             VALUES (@NewsId, @CategoryId)";
         
@@ -71,8 +71,9 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
             transaction = conn.BeginTransaction();
             _logger.LogInformation("OutsideNews upsert start url={Url} title={Title}", entity.Url, entity.Title);
 
+            // 1. Upsert (Insert/Update) da Notícia e obtenção do NewsId
             var newsId = await conn.ExecuteScalarAsync<int>(
-                newsInsertSql,
+                newsUpsertSql,
                 new
                 {
                     entity.Title,
@@ -87,15 +88,35 @@ public sealed class NewsRepository(IDbConnectionFactory factory, ILogger<NewsRep
                 transaction: transaction,
                 commandTimeout: 15);
             
+            // 2. Inserção das Categorias
             if (entity.Categories != null && entity.Categories.Any())
             {
-                var categoryInserts = entity.Categories
-                    .Select(c => new { NewsId = newsId, CategoryId = c.Id })
+                var categoryIds = new List<int>();
+                
+                foreach (var category in entity.Categories)
+                {
+                    // Tenta obter/inserir a categoria e obter o CategoryId
+                    // Assumimos que o sp_UpsertCategory retorna o CategoryId
+                    var categoryId = await conn.ExecuteScalarAsync<int>(
+                        categoryUpsertSql,
+                        new { CategoryName = category.Name },
+                        commandType: CommandType.StoredProcedure,
+                        transaction: transaction);
+
+                    if (categoryId > 0)
+                    {
+                        categoryIds.Add(categoryId);
+                    }
+                }
+
+                // 3. Inserção na tabela de relacionamento NewsCategories
+                var newsCategoryInserts = categoryIds
+                    .Select(cId => new { NewsId = newsId, CategoryId = cId })
                     .ToList();
 
                 var rowsInserted = await conn.ExecuteAsync(
-                    categoryInsertSql,
-                    categoryInserts,
+                    newsCategoryInsertSql,
+                    newsCategoryInserts,
                     transaction: transaction);
                 
                 _logger.LogInformation("OutsideNews categories inserted: {Count} rows.", rowsInserted);
