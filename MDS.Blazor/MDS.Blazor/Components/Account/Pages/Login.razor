@@ -1,116 +1,242 @@
-﻿@page "/Account/Login"
+@page "/Account/Login"
 
 @using System.ComponentModel.DataAnnotations
-@using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using MDS.Blazor.Data
+@using Azure.Communication.Sms
+@using Microsoft.EntityFrameworkCore
 
+@inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject ILogger<Login> Logger
 @inject NavigationManager NavigationManager
+@inject SmsClient SmsClient
+@inject IConfiguration Configuration
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Log in</PageTitle>
+<PageTitle>Entrar</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Log in</MudText>
+<MudText Typo="Typo.h3" GutterBottom="true">Acesse sua conta</MudText>
+<MudText Class="mb-4">Use seu telefone para entrar ou criar uma nova conta.</MudText>
 
 <MudGrid>
-    <MudItem md="6">
+    <MudItem xs="12" sm="8" md="6" lg="4">
         <StatusMessage Message="@errorMessage"/>
-        <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
-            <DataAnnotationsValidator/>
 
-            <MudText GutterBottom="true" Typo="Typo.body1">Use a local account to log in.</MudText>
-
-            <MudGrid>
-                <MudItem md="12">
-                    <MudStaticTextField For="@(() => Input.Email)" @bind-Value="Input.Email"
-                                        Label="Email" Placeholder="name@example.com"
-                                        UserAttributes="@(new() { { "autocomplete", "username" }, { "aria-required", "true" } })"/>
-                </MudItem>
-                <MudItem md="12">
-                    <MudStaticTextField For="@(() => Input.Password)" @bind-Value="Input.Password"
-                                        Label="Password" InputType="InputType.Password" Placeholder="password"
-                                        UserAttributes="@(new() { { "autocomplete", "current-password" }, { "aria-required", "true" } })"/>
-                </MudItem>
-                <MudItem md="12">
-                    <MudStaticCheckBox For="@(() => Input.RememberMe)" @bind-Value="Input.RememberMe">Remember me</MudStaticCheckBox>
-                </MudItem>
-                <MudItem md="12">
-                    <MudStaticButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" FormAction="FormAction.Submit">Log in</MudStaticButton>
-                </MudItem>
-            </MudGrid>
-        </EditForm>
-
-        <MudGrid Class="mt-4">
-            <MudItem md="12">
-                <MudLink Href="Account/ForgotPassword">Forgot your password?</MudLink><br/>
-                <MudLink Href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</MudLink><br/>
-                <MudLink Href="Account/ResendEmailConfirmation">Resend email confirmation</MudLink>
-            </MudItem>
-        </MudGrid>
-    </MudItem>
-    <MudItem md="6">
-        <MudText GutterBottom="true" Typo="Typo.body1">Use another service to log in.</MudText>
-
-        <ExternalLoginPicker/>
+        @if (!isCodeSent)
+        {
+            <EditForm Model="InputPhone" OnValidSubmit="SendVerificationCode" FormName="phone-login">
+                <DataAnnotationsValidator/>
+                <MudCard>
+                    <MudCardContent>
+                        <MudTextField Label="Número de Telefone"
+                                      HelperText="Use o formato internacional (ex: +5511912345678)"
+                                      @bind-Value="InputPhone.PhoneNumber"
+                                      For="() => InputPhone.PhoneNumber"
+                                      InputType="InputType.Telephone"
+                                      Variant="Variant.Outlined"
+                                      UserAttributes="@(new() { { "autocomplete", "tel" } })"/>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="isSendingCode">
+                            @if (isSendingCode)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                                <MudText Class="ms-2">Enviando...</MudText>
+                            }
+                            else
+                            {
+                                <MudText>Enviar Código</MudText>
+                            }
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </EditForm>
+        }
+        else
+        {
+            <EditForm Model="InputCode" OnValidSubmit="VerifyCodeAndLogin" FormName="code-verify">
+                <DataAnnotationsValidator/>
+                <MudCard>
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Verifique seu telefone</MudText>
+                            <MudText Typo="Typo.body2">Um código foi enviado para @InputPhone.PhoneNumber</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudTextField Label="Código de Verificação"
+                                      @bind-Value="InputCode.Code"
+                                      For="() => InputCode.Code"
+                                      Variant="Variant.Outlined"
+                                      UserAttributes="@(new() { { "autocomplete", "one-time-code" } })"/>
+                    </MudCardContent>
+                    <MudCardActions Class="d-flex flex-column gap-2">
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="isVerifyingCode">
+                             @if (isVerifyingCode)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                                <MudText Class="ms-2">Verificando...</MudText>
+                            }
+                            else
+                            {
+                                <MudText>Entrar</MudText>
+                            }
+                        </MudButton>
+                        <MudButton OnClick="GoBack" Variant="Variant.Text" Color="Color.Secondary" FullWidth="true">Voltar</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </EditForm>
+        }
     </MudItem>
 </MudGrid>
 
 @code {
+    private bool isCodeSent;
+    private bool isSendingCode;
+    private bool isVerifyingCode;
     private string? errorMessage;
 
-    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    private PhoneModel InputPhone { get; set; } = new();
+    private CodeModel InputCode { get; set; } = new();
 
-    [SupplyParameterFromForm] private InputModel Input { get; set; } = new();
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
 
-    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
-
-    protected override async Task OnInitializedAsync()
+    private async Task SendVerificationCode()
     {
-        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        isSendingCode = true;
+        errorMessage = null;
+        await InvokeAsync(StateHasChanged);
+        
+        var phoneNumber = InputPhone.PhoneNumber?.Trim();
+        if (string.IsNullOrEmpty(phoneNumber))
         {
-            // Clear the existing external cookie to ensure a clean login process
-            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+            errorMessage = "O número de telefone é obrigatório.";
+            isSendingCode = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (!phoneNumber.StartsWith("+"))
+        {
+            phoneNumber = "+" + phoneNumber;
+        }
+
+        var user = await UserManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber);
+
+        if (user is null)
+        {
+            user = new ApplicationUser { UserName = phoneNumber, PhoneNumber = phoneNumber };
+            var createUserResult = await UserManager.CreateAsync(user);
+            if (!createUserResult.Succeeded)
+            {
+                errorMessage = $"Erro ao criar usuário: {string.Join(", ", createUserResult.Errors.Select(e => e.Description))}";
+                isSendingCode = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+
+        var code = await UserManager.GenerateChangePhoneNumberTokenAsync(user, phoneNumber);
+        var fromNumber = Configuration["AzureCommunicationServices:PhoneNumber"];
+
+        try
+        {
+            var smsResponse = await SmsClient.SendAsync(
+                from: fromNumber,
+                to: phoneNumber,
+                message: $"Seu código de verificação para MeDeixaSaber é: {code}"
+            );
+
+            var sendResult = smsResponse.Value; 
+            
+            if (sendResult.Successful)
+            {
+                InputPhone.PhoneNumber = phoneNumber;
+                Logger.LogInformation("Código de verificação enviado para {PhoneNumber}", phoneNumber);
+                isCodeSent = true;
+            }
+            else
+            {
+                errorMessage = "Falha ao enviar o SMS. Tente novamente.";
+                Logger.LogError("Falha ao enviar SMS para {PhoneNumber}: {Reason}", phoneNumber, sendResult.ErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ocorreu um erro ao enviar o SMS. Verifique as configurações.";
+            Logger.LogError(ex, "Exceção ao enviar SMS para {PhoneNumber}", phoneNumber);
+        }
+        finally
+        {
+            isSendingCode = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
-    public async Task LoginUser()
+    private async Task VerifyCodeAndLogin()
     {
-        // This doesn't count login failures towards account lockout
-        // To enable password failures to trigger account lockout, set lockoutOnFailure: true
-        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
-        if (result.Succeeded)
+        isVerifyingCode = true;
+        errorMessage = null;
+        await InvokeAsync(StateHasChanged);
+        
+        var user = await UserManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == InputPhone.PhoneNumber);
+        if (user is null)
         {
-            Logger.LogInformation("User logged in.");
+            errorMessage = "Usuário não encontrado. Por favor, tente enviar o código novamente.";
+            isVerifyingCode = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var isValid = await UserManager.VerifyChangePhoneNumberTokenAsync(user, InputCode.Code, InputPhone.PhoneNumber!);
+
+        if (isValid)
+        {
+            if (!await UserManager.IsPhoneNumberConfirmedAsync(user))
+            {
+                var token = await UserManager.GenerateChangePhoneNumberTokenAsync(user, InputPhone.PhoneNumber!);
+                var changeResult = await UserManager.ChangePhoneNumberAsync(user, InputPhone.PhoneNumber!, token);
+                if(changeResult.Succeeded)
+                {
+                   user.PhoneNumberConfirmed = true;
+                   await UserManager.UpdateAsync(user);
+                }
+            }
+            
+            await SignInManager.SignInAsync(user, isPersistent: true);
+            Logger.LogInformation("Usuário {PhoneNumber} logado com sucesso.", user.PhoneNumber);
             RedirectManager.RedirectTo(ReturnUrl);
-        }
-        else if (result.RequiresTwoFactor)
-        {
-            RedirectManager.RedirectTo(
-                "Account/LoginWith2fa",
-                new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
-        }
-        else if (result.IsLockedOut)
-        {
-            Logger.LogWarning("User account locked out.");
-            RedirectManager.RedirectTo("Account/Lockout");
         }
         else
         {
-            errorMessage = "Error: Invalid login attempt.";
+            errorMessage = "Código de verificação inválido. Tente novamente.";
+            Logger.LogWarning("Tentativa de login falhou para {PhoneNumber} com código inválido.", InputPhone.PhoneNumber);
         }
+
+        isVerifyingCode = false;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private sealed class InputModel
+    private void GoBack()
     {
-        [Required] [EmailAddress] public string Email { get; set; } = "";
-
-        [Required]
-        [DataType(DataType.Password)]
-        public string Password { get; set; } = "";
-
-        [Display(Name = "Remember me?")] public bool RememberMe { get; set; }
+        isCodeSent = false;
+        errorMessage = null;
+        InputCode = new CodeModel();
+        StateHasChanged();
     }
 
+    public class PhoneModel
+    {
+        [Required(ErrorMessage = "O número de telefone é obrigatório.")]
+        public string? PhoneNumber { get; set; }
+    }
+
+    public class CodeModel
+    {
+        [Required(ErrorMessage = "O código de verificação é obrigatório.")]
+        [RegularExpression(@"^\d{6}$", ErrorMessage = "O código deve ter 6 dígitos.")]
+        public string Code { get; set; } = "";
+    }
 }
